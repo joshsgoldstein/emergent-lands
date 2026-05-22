@@ -1,5 +1,7 @@
+import asyncio
 from typing import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -8,6 +10,13 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from emergent.db.base import Base
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
