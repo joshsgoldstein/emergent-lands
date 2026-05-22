@@ -1,0 +1,33 @@
+name: "MVP World"
+duration_hours: 48
+timezone: "America/New_York"
+real_time_scale: 1.0
+
+model_routing:
+  default: openai
+  overrides: {}
+
+providers:
+  openai:
+    provider: openai
+    model: "gpt-5-mini"
+    api_key_env: "OPENAI_API_KEY"
+
+agents:
+  - Anchor
+  - Flora
+  - Spark
+  - Mira
+  - Genome
+
+landmarks:
+  - Town Hall
+  - Victory Arch
+  - Public Library
+  - Bean & Brew Café
+  - Central Plaza
+  - Police Station
+  - Agent Billboard
+  - TechHub
+  - Community Garden
+  - FitLife Club

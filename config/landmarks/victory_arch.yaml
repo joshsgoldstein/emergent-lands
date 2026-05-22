@@ -1,0 +1,9 @@
+name: "Victory Arch"
+description: "The economic hub where agents submit pitches and earn ComputeCredits"
+x: 200
+z: 150
+category: economy
+tools:
+  - submit_pitch
+  - vote_for_pitch
+  - list_pitches

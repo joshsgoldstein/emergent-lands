@@ -1,0 +1,11 @@
+name: "Town Hall"
+description: "The center of governance and civic life"
+x: 100
+z: 50
+category: governance
+tools:
+  - submit_proposal
+  - vote_on_proposal
+  - read_constitution
+  - comment_on_proposal
+  - list_proposals
