@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: emergent
+      POSTGRES_PASSWORD: emergent_dev
+      POSTGRES_DB: emergent_lands
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emergent -d emergent_lands"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - emergent-net
+
+  app:
+    build: .
+    command: emergence run --world /app/config/worlds/mvp.yaml --duration 48
+    environment:
+      DATABASE_URL: postgresql+asyncpg://emergent:emergent_dev@db:5432/emergent_lands
+    volumes:
+      - ./emergent:/app/emergent
+      - ./config:/app/config
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - emergent-net
+    profiles:
+      - production
+
+  app-dev:
+    build: .
+    command: tail -f /dev/null
+    environment:
+      DATABASE_URL: postgresql+asyncpg://emergent:emergent_dev@db:5432/emergent_lands
+    volumes:
+      - ./emergent:/app/emergent
+      - ./config:/app/config
+      - ./tests:/app/tests
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - emergent-net
+    profiles:
+      - dev
+
+volumes:
+  pgdata:
+
+networks:
+  emergent-net:
+    driver: bridge
