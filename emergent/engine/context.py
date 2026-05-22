@@ -26,7 +26,7 @@ class ContextBuilder:
             if landmark:
                 location_name = landmark.name
 
-        tools = self.registry.get_available_as_definitions(agent)
+        tools = self.registry.get_available_as_definitions(agent, current_location=location_name)
 
         soul_text = "\n".join(f"- {e.content}" for e in soul_entries)
         memory_text = "\n".join(f"- {m.content}" for m in memories)

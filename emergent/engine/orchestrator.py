@@ -8,10 +8,11 @@ from typing import Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from emergent.db.models import Agent, AgentTurn, SimulationState, ToolCall
+from emergent.db.models import Agent, AgentTurn, SimulationState, Speech, ToolCall
 from emergent.agents.state import AgentStateManager
 from emergent.agents.memory import MemoryManager
 from emergent.engine.context import ContextBuilder
+from emergent.engine.reactions import handle_reactions
 from emergent.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,21 @@ class Orchestrator:
             self.db.add(call)
             tool_results.append(result)
             await self.db.flush()
+
+            if tc.name == "say_to_agent":
+                msg = tc.params.get("message", "")
+                self.db.add(Speech(
+                    agent_id=agent.id,
+                    message=msg,
+                    channel="say",
+                    location_id=agent.current_location_id,
+                ))
+                await self.db.flush()
+                await handle_reactions(
+                    agent, msg,
+                    self.db, self.registry, self.state_mgr, self.memory_mgr,
+                    self.context_builder, self.provider,
+                )
 
         await self.db.flush()
 
