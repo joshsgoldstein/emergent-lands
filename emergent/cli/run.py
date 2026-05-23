@@ -165,8 +165,6 @@ async def run_simulation(
 
     db_mgr = DatabaseManager(get_database_url())
     await db_mgr.initialize(echo=False)
-    async with db_mgr.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
     registry = build_registry()
     logger.info(f"Registry: {len(registry)} tools")
@@ -177,6 +175,7 @@ async def run_simulation(
     )
 
     async with db_mgr.session() as db:
+        await db.run_sync(Base.metadata.create_all)
         session_id = uuid.uuid4()
         session_name = name or generate_session_name(world_config.name)
 
