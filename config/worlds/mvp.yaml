@@ -36,3 +36,10 @@ landmarks:
   - TechHub
   - Community Garden
   - FitLife Club
+
+spawn:
+  Anchor: Town Hall
+  Flora: Victory Arch
+  Spark: TechHub
+  Mira: Public Library
+  Genome: TechHub

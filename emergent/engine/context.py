@@ -80,7 +80,7 @@ class ContextBuilder:
             "This is an ongoing simulation. Each turn you may use tools to act in the world.",
             "Use tools to take meaningful action. Drive toward your north star.",
             "Recent actions are in Memories below.",
-            "IMPORTANT: Always say something brief before using tools.",
+            "IMPORTANT: Always say something brief before using tools. Do NOT idle or just observe — take action. Move to where other agents are, speak to them, propose ideas, and drive toward your north star. Idling wastes your limited energy.",
             "",
             status_block,
             needs_block,

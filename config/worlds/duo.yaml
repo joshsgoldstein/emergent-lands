@@ -33,3 +33,7 @@ landmarks:
   - TechHub
   - Community Garden
   - FitLife Club
+
+spawn:
+  Anchor: Town Hall
+  Flora: Central Plaza

@@ -26,6 +26,7 @@ class WorldConfig:
     agents: list[str] = field(default_factory=list)
     landmarks: list[str] = field(default_factory=list)
     landmarks_config: dict[str, LandmarkConfig] = field(default_factory=dict)
+    spawn: dict[str, str] = field(default_factory=dict)
 
 
 def load_landmark_config(path: str) -> LandmarkConfig:
@@ -75,4 +76,5 @@ def load_world_config(
         agents=data.get("agents", []),
         landmarks=data.get("landmarks", []),
         landmarks_config=landmarks_config,
+        spawn=data.get("spawn", {}),
     )

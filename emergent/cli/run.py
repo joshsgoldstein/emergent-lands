@@ -161,6 +161,32 @@ async def seed_world(db, world_config):
             if profile.soul_entries:
                 await state_mgr.seed_soul_entries(agent.id, profile.soul_entries)
 
+    # Apply spawn locations from world config (or gather at Central Plaza by default)
+    all_agents = await state_mgr.get_living_agents()
+    agent_by_name = {a.name: a for a in all_agents}
+    if world_config.spawn:
+        for agent_name, landmark_name in world_config.spawn.items():
+            a = agent_by_name.get(agent_name)
+            if a:
+                lm_result = await db.execute(
+                    select(Landmark).where(Landmark.name == landmark_name)
+                )
+                lm = lm_result.scalar_one_or_none()
+                if lm:
+                    a.current_location_id = lm.id
+        await db.flush()
+        logger.info(f"  Spawn locations applied: {world_config.spawn}")
+    else:
+        plaza_result = await db.execute(
+            select(Landmark).where(Landmark.name == "Central Plaza")
+        )
+        plaza = plaza_result.scalar_one_or_none()
+        if plaza:
+            for a in all_agents:
+                a.current_location_id = plaza.id
+            await db.flush()
+            logger.info("  All agents gathered at Central Plaza")
+
     await db.commit()
 
 
