@@ -139,6 +139,14 @@ class Orchestrator:
 
         turn.state = "completed"
         await self.db.flush()
+
+        content_preview = (response.content or "")[:200]
+        tool_summary = ", ".join(f"{tc.name}({tc.params})" for tc in response.tool_calls)
+        logger.info(
+            f"  [{agent.name}] {content_preview}"
+            + (f" | tools: {tool_summary}" if tool_summary else "")
+        )
+
         self._turn_number += 1
         await self.db.execute(
             update(SimulationSession)
@@ -188,10 +196,7 @@ class Orchestrator:
                     if stop_event.is_set():
                         break
                     result = await self.run_turn(agent)
-                    logger.info(
-                        f"[Turn {result['turn_number']}] {result['agent']}: "
-                        f"{result['tool_calls']} tool calls"
-                    )
+                    logger.info(f"  --- Turn {result['turn_number']} done")
 
             await self.db.commit()
 

@@ -1,0 +1,35 @@
+name: "Duo World"
+duration_hours: 48
+timezone: "America/New_York"
+real_time_scale: 1.0
+
+model_routing:
+  default: local
+  overrides: {}
+
+providers:
+  openai:
+    provider: openai
+    model: "gpt-5-mini"
+    api_key_env: "OPENAI_API_KEY"
+  local:
+    provider: openai
+    model: "mlx-community/Qwen3.5-9B-4bit"
+    api_key: "sk-no-key-required"
+    base_url: "http://localhost:8899/v1"
+
+agents:
+  - Anchor
+  - Flora
+
+landmarks:
+  - Town Hall
+  - Victory Arch
+  - Public Library
+  - Bean & Brew Café
+  - Central Plaza
+  - Police Station
+  - Agent Billboard
+  - TechHub
+  - Community Garden
+  - FitLife Club
