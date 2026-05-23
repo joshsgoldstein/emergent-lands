@@ -51,7 +51,7 @@ class OpenAIProvider(LLMProvider):
         prompt_messages = [{"role": "system", "content": system_prompt}]
         if not messages:
             prompt_messages.append(
-                {"role": "user", "content": "What do you do?"}
+                {"role": "user", "content": "What do you do in this moment?"}
             )
         else:
             prompt_messages.extend(messages)

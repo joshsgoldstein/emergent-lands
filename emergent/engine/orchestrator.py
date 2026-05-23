@@ -140,6 +140,13 @@ class Orchestrator:
         turn.state = "completed"
         await self.db.flush()
 
+        action_text = response.content or ""
+        if response.tool_calls:
+            action_text += " " + " ".join(
+                f"used {tc.name}" for tc in response.tool_calls
+            )
+        await self.memory_mgr.add_memory(agent.id, f"[Turn {self._turn_number}] {action_text.strip()}")
+
         content_preview = (response.content or "")[:200]
         tool_summary = ", ".join(f"{tc.name}({tc.params})" for tc in response.tool_calls)
         logger.info(
