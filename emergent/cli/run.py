@@ -175,7 +175,7 @@ async def run_simulation(
     )
 
     async with db_mgr.session() as db:
-        await db.run_sync(Base.metadata.create_all)
+        await db.run_sync(lambda s: Base.metadata.create_all(s.connection()))
         session_id = uuid.uuid4()
         session_name = name or generate_session_name(world_config.name)
 
