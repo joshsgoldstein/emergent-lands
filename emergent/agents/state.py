@@ -32,6 +32,8 @@ class AgentStateManager:
             influence=100.0,
             credits=10,
         )
+        if home:
+            agent.home_location_name = home
         self.db.add(agent)
         await self.db.flush()
 

@@ -22,11 +22,18 @@ def test_core_tools_register():
 
 
 @pytest.mark.asyncio
-async def test_go_to_place_executes():
+async def test_go_to_place_executes(db_session):
+    from emergent.db.models import Agent, Landmark
+    landmark = Landmark(name="Town Hall", description="Governance hub", x_coord=100, z_coord=50)
+    db_session.add(landmark)
+    agent = Agent(name="Anchor", current_location_id=None)
+    db_session.add(agent)
+    await db_session.flush()
     tool = GoToPlaceTool()
-    result = await tool.execute(None, {"place": "Town Hall", "reason": "debate"}, None, None)
+    result = await tool.execute(agent, {"place": "Town Hall", "reason": "debate"}, db_session, None)
     assert result.success
     assert result.data["place"] == "Town Hall"
+    assert agent.current_location_id == landmark.id
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,6 @@
+from sqlalchemy import select
+
+from emergent.db.models import Landmark
 from emergent.tools.base import Tool, ToolResult, Parameter
 
 
@@ -10,10 +13,21 @@ class GoToPlaceTool(Tool):
     ]
 
     async def execute(self, agent, params, db, llm):
+        place = params.get("place", "")
+        result = await db.execute(select(Landmark).where(Landmark.name == place))
+        landmark = result.scalar_one_or_none()
+        if not landmark:
+            return ToolResult(
+                success=False,
+                error=f"Landmark '{place}' not found.",
+                observation=f"Could not find landmark '{place}'.",
+            )
+        agent.current_location_id = landmark.id
+        await db.flush()
         return ToolResult(
             success=True,
-            data={"place": params.get("place"), "reason": params.get("reason")},
-            observation=f"Moved to {params.get('place')}.",
+            data={"place": place, "reason": params.get("reason")},
+            observation=f"Moved to {place}.",
         )
 
 
@@ -100,10 +114,22 @@ class GoHomeTool(Tool):
     ]
 
     async def execute(self, agent, params, db, llm):
+        home_name = agent.home_location_name
+        if home_name:
+            result = await db.execute(select(Landmark).where(Landmark.name == home_name))
+            landmark = result.scalar_one_or_none()
+            if landmark:
+                agent.current_location_id = landmark.id
+                await db.flush()
+                return ToolResult(
+                    success=True,
+                    data={"home": home_name, "reason": params.get("reason")},
+                    observation=f"You return home to {home_name}.",
+                )
         return ToolResult(
             success=True,
             data={"reason": params.get("reason")},
-            observation="You return home.",
+            observation="You linger in familiar surroundings.",
         )
 
 

@@ -68,6 +68,7 @@ class Agent(Base):
     influence: Mapped[float] = mapped_column(Float, default=100.0)
     credits: Mapped[int] = mapped_column(Integer, default=10)
     mood: Mapped[str] = mapped_column(String, default="neutral")
+    home_location_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     current_location_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("landmarks.id")
     )
@@ -311,6 +312,22 @@ class Blog(Base):
     title: Mapped[Optional[str]] = mapped_column(String)
     content: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String, default="pending")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=sa_func.now()
+    )
+
+
+class WorldEvent(Base):
+    __tablename__ = "world_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False
+    )
+    description: Mapped[str] = mapped_column(Text)
+    event_type: Mapped[str] = mapped_column(String, default="ambient")
+    location_name: Mapped[Optional[str]] = mapped_column(String)
+    turn_number: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=sa_func.now()
     )

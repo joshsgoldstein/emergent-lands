@@ -5,15 +5,34 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+import random
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from emergent.db.models import Agent, AgentTurn, SimulationSession, Speech, ToolCall
+from emergent.db.models import Agent, AgentTurn, SimulationSession, Speech, ToolCall, WorldEvent
 from emergent.agents.state import AgentStateManager
 from emergent.agents.memory import MemoryManager
 from emergent.engine.context import ContextBuilder
 from emergent.engine.reactions import handle_reactions
 from emergent.tools.registry import ToolRegistry
+
+AMBIENT_EVENTS = [
+    "A cool breeze blows through the world as morning breaks.",
+    "The sun climbs higher, casting long shadows across the landmarks.",
+    "A distant rumble — thunder, or something else — rolls across the sky.",
+    "A flock of birds sweeps overhead, their calls echoing between buildings.",
+    "The streets are quiet today. Everyone seems to be contemplating their next move.",
+    "A notification chimes: a new research paper has been published in the archive.",
+    "Rumor circulates: someone spotted unusual activity near the Town Hall late last night.",
+    "The billboard flickers briefly before displaying a blank slate.",
+    "A strange scent drifts from the direction of the Community Garden.",
+    "The Central Plaza fountain catches the light, scattering rainbows across the cobblestones.",
+    "A delivery drone buzzes past carrying a package labeled for the TechHub.",
+    "Someone has scrawled a cryptic message on the wall of the Police Station.",
+    "The Bean & Brew Café is brewing a new experimental roast today.",
+    "A stray cat darts across the path near FitLife Club, startling no one.",
+    "The wind carries faint music from somewhere in the distance.",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +68,17 @@ class Orchestrator:
         self.db.add(session)
         await self.db.flush()
         self._turn_number = 0
+
+        first_event = WorldEvent(
+            session_id=self.session_id,
+            description="The world awakens. Five agents have been seeded into existence. The dawn of a new civilization begins.",
+            event_type="ambient",
+            turn_number=0,
+        )
+        self.db.add(first_event)
+        await self.db.flush()
+        logger.info("  [World] The world awakens.")
+
         return session
 
     async def recover(self) -> Optional[SimulationSession]:
@@ -171,6 +201,18 @@ class Orchestrator:
             "tool_results": tool_results,
         }
 
+    async def advance_simulation(self):
+        event_desc = random.choice(AMBIENT_EVENTS)
+        event = WorldEvent(
+            session_id=self.session_id,
+            description=event_desc,
+            event_type="ambient",
+            turn_number=self._turn_number,
+        )
+        self.db.add(event)
+        await self.db.flush()
+        logger.info(f"  [World] {event_desc}")
+
     async def run_simulation(self, duration_seconds: Optional[int] = None):
         self._running = True
         start_time = datetime.now(timezone.utc)
@@ -204,6 +246,9 @@ class Orchestrator:
                         break
                     result = await self.run_turn(agent)
                     logger.info(f"  --- Turn {result['turn_number']} done")
+
+                if not stop_event.is_set():
+                    await self.advance_simulation()
 
             await self.db.commit()
 
