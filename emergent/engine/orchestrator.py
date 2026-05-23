@@ -155,7 +155,7 @@ class Orchestrator:
                 current_turn_number=self._turn_number,
             )
         )
-        await self.db.flush()
+        await self.db.commit()
         return {
             "agent": agent.name,
             "turn_number": turn.turn_number,
