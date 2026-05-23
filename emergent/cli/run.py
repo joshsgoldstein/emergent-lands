@@ -220,8 +220,11 @@ async def run_simulation(
         world_config.model_routing.get("default", "openai")
     )
 
+    # create_all on its own connection to avoid DDL-vs-DML deadlock
+    async with db_mgr.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     async with db_mgr.session() as db:
-        await db.run_sync(lambda s: Base.metadata.create_all(s.connection()))
         session_id = uuid.uuid4()
         session_name = name or generate_session_name(world_config.name)
 
