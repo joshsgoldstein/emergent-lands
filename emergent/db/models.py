@@ -22,16 +22,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from emergent.db.base import Base
 
 
-class SimulationState(Base):
-    __tablename__ = "simulation_state"
+class SimulationSession(Base):
+    __tablename__ = "sessions"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    world_name: Mapped[str] = mapped_column(String)
-    simulation_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status: Mapped[str] = mapped_column(String, default="running")
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    world_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="created")
     current_turn_number: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=sa_func.now()
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
 
@@ -76,6 +81,9 @@ class AgentTurn(Base):
     __tablename__ = "agent_turns"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False
+    )
     agent_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agents.id")
     )

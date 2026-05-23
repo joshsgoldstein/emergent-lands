@@ -48,13 +48,18 @@ class OpenAIProvider(LLMProvider):
         agent: object,
     ) -> LLMResponse:
         openai_tools = self._to_openai_tools(tools) if tools else None
+        prompt_messages = [{"role": "system", "content": system_prompt}]
+        if not messages:
+            prompt_messages.append(
+                {"role": "user", "content": "What do you do?"}
+            )
+        else:
+            prompt_messages.extend(messages)
         response = await self._client.chat.completions.create(
             model=self.model_id,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                *messages,
-            ],
+            messages=prompt_messages,
             tools=openai_tools or None,
+            max_tokens=512,
         )
         choice = response.choices[0]
         msg = choice.message

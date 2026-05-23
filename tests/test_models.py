@@ -15,7 +15,7 @@ class TestModels:
 
     def test_required_tables_exist(self):
         expected = {
-            "simulation_state", "agents", "agent_turns", "tool_calls",
+            "sessions", "agents", "agent_turns", "tool_calls",
             "memories", "soul_entries", "diary_entries", "relationships",
             "messages", "speech", "landmarks", "proposals", "votes",
             "constitution_articles", "credit_transactions", "pitches",

@@ -1,14 +1,14 @@
 import asyncio
 import logging
-import os
-import sys
+import uuid
+from datetime import datetime, timezone
 
 import click
 from sqlalchemy import select
 
 from emergent.db.connection import DatabaseManager, get_database_url
 from emergent.db.base import Base
-from emergent.db.models import Landmark
+from emergent.db.models import Agent, Landmark, SimulationSession
 from emergent.tools.registry import ToolRegistry
 from emergent.tools.core import register_all_core_tools
 from emergent.tools.locations.governance import (
@@ -144,7 +144,19 @@ async def seed_world(db, world_config):
     await db.commit()
 
 
-async def run_simulation(world_path: str, duration_hours: int, resume: bool = False):
+def generate_session_name(world_name: str) -> str:
+    now = datetime.now(timezone.utc)
+    slug = world_name.lower().replace(" ", "-").replace("_", "-")
+    ts = now.strftime("%Y%m%d-%H%M%S")
+    return f"{slug}-{ts}"
+
+
+async def run_simulation(
+    world_path: str,
+    duration_hours: int,
+    resume: str | None = None,
+    name: str | None = None,
+):
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logger.info(f"Loading world: {world_path}")
 
@@ -160,35 +172,60 @@ async def run_simulation(world_path: str, duration_hours: int, resume: bool = Fa
     logger.info(f"Registry: {len(registry)} tools")
 
     router = build_router(world_config.providers)
-
     provider = router.get_provider(
         world_config.model_routing.get("default", "openai")
     )
 
     async with db_mgr.session() as db:
-        if not resume:
-            await seed_world(db, world_config)
+        session_id = uuid.uuid4()
+        session_name = name or generate_session_name(world_config.name)
 
         state_mgr = AgentStateManager(db)
         memory_mgr = MemoryManager(db)
         context_builder = ContextBuilder(db, registry)
 
-        orch = Orchestrator(db, registry, state_mgr, memory_mgr, context_builder, provider)
-
         if resume:
-            state = await orch.recover()
-            if state:
-                logger.info(f"Resumed from turn {state.current_turn_number}")
+            result = await db.execute(
+                select(SimulationSession).where(SimulationSession.name == resume)
+            )
+            session = result.scalar_one_or_none()
+            if not session:
+                logger.info(f"No session named '{resume}', starting fresh")
+                session_id = uuid.uuid4()
+                await seed_world(db, world_config)
+                orch = Orchestrator(
+                    db, registry, state_mgr, memory_mgr, context_builder, provider,
+                    session_id=session_id,
+                )
+                await orch.initialize_simulation(world_path, session_name)
             else:
-                logger.info("No previous state found, starting fresh")
-                await orch.initialize_simulation(world_config.name)
+                session_id = session.id
+                if session.status == "completed":
+                    logger.info(f"Session '{resume}' already completed")
+                    return
+                orch = Orchestrator(
+                    db, registry, state_mgr, memory_mgr, context_builder, provider,
+                    session_id=session_id,
+                )
+                recovered = await orch.recover()
+                if recovered:
+                    logger.info(f"Resumed from turn {recovered.current_turn_number}")
+                else:
+                    logger.info("Session not found, starting fresh")
         else:
-            await orch.initialize_simulation(world_config.name)
+            await seed_world(db, world_config)
+            orch = Orchestrator(
+                db, registry, state_mgr, memory_mgr, context_builder, provider,
+                session_id=session_id,
+            )
+            await orch.initialize_simulation(world_path, session_name)
+            logger.info(f"Session: {session_name}")
 
         duration_seconds = int(duration_hours * 3600)
         logger.info(f"Starting simulation for {duration_hours}h ({duration_seconds}s)")
         await orch.run_simulation(duration_seconds=duration_seconds)
 
+        await db.commit()
         logger.info("Simulation complete")
 
 
@@ -200,10 +237,35 @@ def cli():
 @cli.command()
 @click.option("--world", default="config/worlds/mvp.yaml", help="World config path")
 @click.option("--duration", default=48, type=int, help="Duration in hours")
-@click.option("--resume", is_flag=True, help="Resume from saved state")
-def run(world, duration, resume):
+@click.option("--resume", default=None, help="Resume a named session")
+@click.option("--name", default=None, help="Name for this session (auto-generated if omitted)")
+def run(world, duration, resume, name):
     """Run the emergent-lands simulation."""
-    asyncio.run(run_simulation(world, duration, resume))
+    asyncio.run(run_simulation(world, duration, resume, name))
+
+
+@cli.command()
+def list():
+    """List all simulation sessions."""
+    async def _list():
+        db_mgr = DatabaseManager(get_database_url())
+        await db_mgr.initialize(echo=False)
+        async with db_mgr.session() as db:
+            result = await db.execute(
+                select(SimulationSession).order_by(SimulationSession.created_at.desc())
+            )
+            sessions = result.scalars().all()
+            if not sessions:
+                click.echo("No sessions found")
+                return
+            for s in sessions:
+                completed = s.completed_at.strftime("%Y-%m-%d %H:%M:%S UTC") if s.completed_at else "-"
+                click.echo(
+                    f"  {s.name:<45} {s.status:<12} turns={s.current_turn_number}  "
+                    f"created={s.created_at.strftime('%Y-%m-%d %H:%M:%S')}  "
+                    f"completed={completed}"
+                )
+    asyncio.run(_list())
 
 
 @cli.command()

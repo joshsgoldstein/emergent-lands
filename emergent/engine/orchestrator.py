@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from emergent.db.models import Agent, AgentTurn, SimulationState, Speech, ToolCall
+from emergent.db.models import Agent, AgentTurn, SimulationSession, Speech, ToolCall
 from emergent.agents.state import AgentStateManager
 from emergent.agents.memory import MemoryManager
 from emergent.engine.context import ContextBuilder
@@ -27,6 +27,7 @@ class Orchestrator:
         memory_mgr: MemoryManager,
         context_builder: ContextBuilder,
         provider,
+        session_id: uuid.UUID,
     ):
         self.db = db
         self.registry = registry
@@ -34,45 +35,45 @@ class Orchestrator:
         self.memory_mgr = memory_mgr
         self.context_builder = context_builder
         self.provider = provider
+        self.session_id = session_id
         self._running = False
         self._turn_number = 0
 
-    async def initialize_simulation(self, world_name: str = "MVP World"):
-        result = await self.db.execute(
-            select(SimulationState).where(SimulationState.id == 1)
+    async def initialize_simulation(self, world_path: str, name: str):
+        session = SimulationSession(
+            id=self.session_id,
+            name=name,
+            world_path=world_path,
+            status="running",
         )
-        state = result.scalar_one_or_none()
-        if not state:
-            state = SimulationState(
-                id=1,
-                world_name=world_name,
-                simulation_time=datetime.now(timezone.utc),
-                status="running",
-            )
-            self.db.add(state)
-            await self.db.flush()
-        self._turn_number = state.current_turn_number
-        return state
+        self.db.add(session)
+        await self.db.flush()
+        self._turn_number = 0
+        return session
 
-    async def recover(self):
+    async def recover(self) -> Optional[SimulationSession]:
         result = await self.db.execute(
-            select(SimulationState).where(SimulationState.id == 1)
+            select(SimulationSession).where(SimulationSession.id == self.session_id)
         )
-        state = result.scalar_one_or_none()
-        if not state:
+        session = result.scalar_one_or_none()
+        if not session:
             return None
-        if state.status == "running":
+        if session.status == "running":
             await self.db.execute(
                 update(AgentTurn)
-                .where(AgentTurn.state == "in_progress")
+                .where(
+                    AgentTurn.session_id == self.session_id,
+                    AgentTurn.state == "in_progress",
+                )
                 .values(state="interrupted")
             )
             await self.db.flush()
-        self._turn_number = state.current_turn_number
-        return state
+        self._turn_number = session.current_turn_number
+        return session
 
     async def run_turn(self, agent: Agent, turn_type: str = "regular") -> dict:
         turn = AgentTurn(
+            session_id=self.session_id,
             agent_id=agent.id,
             turn_number=self._turn_number,
             state="in_progress",
@@ -140,14 +141,13 @@ class Orchestrator:
         await self.db.flush()
         self._turn_number += 1
         await self.db.execute(
-            update(SimulationState)
-            .where(SimulationState.id == 1)
+            update(SimulationSession)
+            .where(SimulationSession.id == self.session_id)
             .values(
                 current_turn_number=self._turn_number,
-                simulation_time=datetime.now(timezone.utc),
             )
         )
-        await self.db.flush()
+        await self.db.commit()
         return {
             "agent": agent.name,
             "turn_number": turn.turn_number,
@@ -190,24 +190,31 @@ class Orchestrator:
                     result = await self.run_turn(agent)
                     logger.info(
                         f"[Turn {result['turn_number']}] {result['agent']}: "
-                        f"{len(result['tool_calls'])} tool calls"
+                        f"{result['tool_calls']} tool calls"
                     )
+
+            await self.db.commit()
 
         finally:
             self._running = False
-            state = await self.db.execute(
-                select(SimulationState).where(SimulationState.id == 1)
+            await self.db.execute(
+                update(SimulationSession)
+                .where(SimulationSession.id == self.session_id)
+                .values(
+                    status="paused",
+                    completed_at=datetime.now(timezone.utc),
+                )
             )
-            sim_state = state.scalar_one_or_none()
-            if sim_state:
-                sim_state.status = "paused"
-                await self.db.flush()
+            await self.db.commit()
 
     async def graceful_shutdown(self):
         self._running = False
         await self.db.execute(
-            update(SimulationState)
-            .where(SimulationState.id == 1)
-            .values(status="paused")
+            update(SimulationSession)
+            .where(SimulationSession.id == self.session_id)
+            .values(
+                status="paused",
+                completed_at=datetime.now(timezone.utc),
+            )
         )
         await self.db.commit()

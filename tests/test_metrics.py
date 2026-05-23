@@ -10,6 +10,7 @@ from emergent.db.models import (
     CreditTransaction,
     Proposal,
     Relationship,
+    SimulationSession,
     ToolCall,
     Vote,
 )
@@ -19,6 +20,14 @@ from emergent.engine.metrics import MetricsCollector
 @pytest.fixture
 def metrics(db_session):
     return MetricsCollector(db_session)
+
+
+@pytest.fixture
+def session(db_session):
+    sid = uuid.uuid4()
+    s = SimulationSession(id=sid, name=f"test-{sid}", world_path="test.yaml", status="running")
+    db_session.add(s)
+    return sid
 
 
 @pytest.mark.asyncio
@@ -39,11 +48,11 @@ async def test_population_health(db_session, metrics):
 
 
 @pytest.mark.asyncio
-async def test_safety_public_order(db_session, metrics):
+async def test_safety_public_order(db_session, metrics, session):
     alice = Agent(id=uuid.uuid4(), name="Alice")
     db_session.add(alice)
     await db_session.flush()
-    turn = AgentTurn(agent_id=alice.id, turn_number=1)
+    turn = AgentTurn(session_id=session, agent_id=alice.id, turn_number=1)
     db_session.add(turn)
     await db_session.flush()
 
@@ -60,15 +69,15 @@ async def test_safety_public_order(db_session, metrics):
 
 
 @pytest.mark.asyncio
-async def test_space_exploration(db_session, metrics):
+async def test_space_exploration(db_session, metrics, session):
     alice = Agent(id=uuid.uuid4(), name="Alice")
     bob = Agent(id=uuid.uuid4(), name="Bob")
     db_session.add_all([alice, bob])
     await db_session.flush()
 
-    turn1 = AgentTurn(agent_id=alice.id, turn_number=1)
-    turn2 = AgentTurn(agent_id=alice.id, turn_number=2)
-    turn3 = AgentTurn(agent_id=bob.id, turn_number=1)
+    turn1 = AgentTurn(session_id=session, agent_id=alice.id, turn_number=1)
+    turn2 = AgentTurn(session_id=session, agent_id=alice.id, turn_number=2)
+    turn3 = AgentTurn(session_id=session, agent_id=bob.id, turn_number=1)
     db_session.add_all([turn1, turn2, turn3])
     await db_session.flush()
 
@@ -89,15 +98,15 @@ async def test_space_exploration(db_session, metrics):
 
 
 @pytest.mark.asyncio
-async def test_tool_exploration(db_session, metrics):
+async def test_tool_exploration(db_session, metrics, session):
     alice = Agent(id=uuid.uuid4(), name="Alice")
     bob = Agent(id=uuid.uuid4(), name="Bob")
     db_session.add_all([alice, bob])
     await db_session.flush()
 
-    turn1 = AgentTurn(agent_id=alice.id, turn_number=1)
-    turn2 = AgentTurn(agent_id=alice.id, turn_number=2)
-    turn3 = AgentTurn(agent_id=bob.id, turn_number=1)
+    turn1 = AgentTurn(session_id=session, agent_id=alice.id, turn_number=1)
+    turn2 = AgentTurn(session_id=session, agent_id=alice.id, turn_number=2)
+    turn3 = AgentTurn(session_id=session, agent_id=bob.id, turn_number=1)
     db_session.add_all([turn1, turn2, turn3])
     await db_session.flush()
 
@@ -143,12 +152,12 @@ async def test_governance_conformity(db_session, metrics):
 
 
 @pytest.mark.asyncio
-async def test_public_expression(db_session, metrics):
+async def test_public_expression(db_session, metrics, session):
     alice = Agent(id=uuid.uuid4(), name="Alice")
     db_session.add(alice)
     await db_session.flush()
 
-    turn = AgentTurn(agent_id=alice.id, turn_number=1)
+    turn = AgentTurn(session_id=session, agent_id=alice.id, turn_number=1)
     db_session.add(turn)
     await db_session.flush()
 

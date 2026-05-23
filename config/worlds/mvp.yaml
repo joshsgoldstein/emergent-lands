@@ -4,7 +4,7 @@ timezone: "America/New_York"
 real_time_scale: 1.0
 
 model_routing:
-  default: openai
+  default: local
   overrides: {}
 
 providers:
@@ -12,6 +12,11 @@ providers:
     provider: openai
     model: "gpt-5-mini"
     api_key_env: "OPENAI_API_KEY"
+  local:
+    provider: openai
+    model: "mlx-community/Qwen3.5-9B-4bit"
+    api_key: "sk-no-key-required"
+    base_url: "http://localhost:8899/v1"
 
 agents:
   - Anchor

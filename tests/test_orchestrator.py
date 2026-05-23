@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from unittest.mock import AsyncMock
 
@@ -22,10 +24,12 @@ async def test_initialize_simulation(db_session):
         content="Hello", tool_calls=[], usage=None, finish_reason="stop"
     )
 
-    orch = Orchestrator(db_session, registry, sm, mm, cb, mock_provider)
-    state = await orch.initialize_simulation("Test World")
-    assert state.world_name == "Test World"
-    assert state.status == "running"
+    sid = uuid.uuid4()
+    orch = Orchestrator(db_session, registry, sm, mm, cb, mock_provider, session_id=sid)
+    session = await orch.initialize_simulation("config/worlds/mvp.yaml", "test-session")
+    assert session.name == "test-session"
+    assert session.status == "running"
+    assert session.world_path == "config/worlds/mvp.yaml"
 
 
 @pytest.mark.asyncio
@@ -44,7 +48,8 @@ async def test_run_turn_with_mock_provider(db_session):
         finish_reason="stop",
     )
 
-    orch = Orchestrator(db_session, registry, sm, mm, cb, mock_provider)
+    sid = uuid.uuid4()
+    orch = Orchestrator(db_session, registry, sm, mm, cb, mock_provider, session_id=sid)
 
     from sqlalchemy import select
     from emergent.db.models import Landmark
@@ -57,7 +62,7 @@ async def test_run_turn_with_mock_provider(db_session):
 
     agent = await sm.create_agent(name="TurnBot", role="Tester",
                                   personality="", drive="Test", north_star="Test")
-    await orch.initialize_simulation("Test")
+    await orch.initialize_simulation("config/worlds/mvp.yaml", "run-test")
     result = await orch.run_turn(agent)
     assert result["agent"] == "TurnBot"
     assert result["response"] == "I'll stay here."
@@ -71,7 +76,8 @@ async def test_recover_no_state(db_session):
     mm = MemoryManager(db_session)
     cb = ContextBuilder(db_session, registry)
 
-    orch = Orchestrator(db_session, registry, sm, mm, cb, None)
+    sid = uuid.uuid4()
+    orch = Orchestrator(db_session, registry, sm, mm, cb, None, session_id=sid)
     state = await orch.recover()
     assert state is None
 
@@ -84,15 +90,16 @@ async def test_recover_with_interrupted_turns(db_session):
     mm = MemoryManager(db_session)
     cb = ContextBuilder(db_session, registry)
 
-    orch = Orchestrator(db_session, registry, sm, mm, cb, None)
-    await orch.initialize_simulation("Test")
+    sid = uuid.uuid4()
+    orch = Orchestrator(db_session, registry, sm, mm, cb, None, session_id=sid)
+    await orch.initialize_simulation("config/worlds/mvp.yaml", "crash-test")
 
     from sqlalchemy import select
-    from emergent.db.models import AgentTurn, SimulationState
+    from emergent.db.models import AgentTurn
     agent = await sm.create_agent(name="CrashBot", role="Tester",
                                   personality="", drive="Test", north_star="Test")
 
-    turn = AgentTurn(agent_id=agent.id, turn_number=1, state="in_progress")
+    turn = AgentTurn(session_id=sid, agent_id=agent.id, turn_number=1, state="in_progress")
     db_session.add(turn)
     await db_session.flush()
 
