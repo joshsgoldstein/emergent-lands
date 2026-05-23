@@ -36,7 +36,7 @@ from emergent.engine.orchestrator import Orchestrator
 from emergent.engine.economy import CreditManager
 from emergent.engine.governance import GovernanceManager
 from emergent.models.router import ProviderRouter, ProviderConfig
-from emergent.world.config import load_world_config
+from emergent.world.config import LandmarkConfig, load_world_config
 
 
 def _duration_to_seconds(duration_str: str) -> int:
@@ -48,33 +48,7 @@ def _duration_to_seconds(duration_str: str) -> int:
     if unit == "m":
         return int(amount * 60)
     return int(amount * 3600)
-from emergent.tools.registry import ToolRegistry
-from emergent.tools.core import register_all_core_tools
-from emergent.tools.locations.governance import (
-    SubmitProposalTool, VoteOnProposalTool, ReadConstitutionTool,
-    CommentOnProposalTool, ListProposalsTool,
-)
-from emergent.tools.locations.economy import (
-    SubmitPitchTool, VoteForPitchTool, ListPitchesTool,
-    RechargeEnergyTool, PayCreditsTool, BoostTurnTool,
-)
-from emergent.tools.locations.research import (
-    DoDeepResearchTool, BrowsePapersTool, PublishToArchiveTool, SearchArchiveTool,
-)
-from emergent.tools.locations.social import (
-    ProposeEventTool, ListEventsTool, PostToBillboardTool, ReadBillboardTool,
-    ExtractCodeTool, BrowseToolRegistryTool, PrayTool,
-    CheckAgentPopularityTool, FileComplaintTool, CheckComplaintStatusTool,
-)
-from emergent.agents.state import AgentStateManager
-from emergent.agents.memory import MemoryManager
-from emergent.agents.profiles import discover_agents, load_agent_profile
-from emergent.engine.context import ContextBuilder
-from emergent.engine.orchestrator import Orchestrator
-from emergent.engine.economy import CreditManager
-from emergent.engine.governance import GovernanceManager
-from emergent.models.router import ProviderRouter, ProviderConfig
-from emergent.world.config import load_world_config
+
 
 logger = logging.getLogger(__name__)
 
@@ -147,20 +121,27 @@ async def seed_world(db, world_config):
     state_mgr = AgentStateManager(db)
     gov_mgr = GovernanceManager(db)
 
-    for lm_name in world_config.landmarks:
+    for i, lm_name in enumerate(world_config.landmarks):
         lm_config = world_config.landmarks_config.get(lm_name)
-        if lm_config:
-            existing = await db.execute(
-                select(Landmark).where(Landmark.name == lm_name)
+        if not lm_config:
+            lm_config = LandmarkConfig(
+                name=lm_name,
+                description=lm_name,
+                x=float(i * 100),
+                z=float(i * 50),
+                category="public",
             )
-            if not existing.scalar_one_or_none():
-                db.add(Landmark(
-                    name=lm_config.name,
-                    description=lm_config.description,
-                    x_coord=lm_config.x,
-                    z_coord=lm_config.z,
-                    category=lm_config.category,
-                ))
+        existing = await db.execute(
+            select(Landmark).where(Landmark.name == lm_name)
+        )
+        if not existing.scalar_one_or_none():
+            db.add(Landmark(
+                name=lm_config.name,
+                description=lm_config.description,
+                x_coord=lm_config.x,
+                z_coord=lm_config.z,
+                category=lm_config.category,
+            ))
     await db.flush()
 
     await gov_mgr.seed_constitution()

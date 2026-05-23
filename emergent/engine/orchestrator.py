@@ -9,7 +9,7 @@ import random
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from emergent.db.models import Agent, AgentTurn, SimulationSession, Speech, ToolCall, WorldEvent
+from emergent.db.models import Agent, AgentTurn, Landmark, SimulationSession, Speech, ToolCall, WorldEvent
 from emergent.agents.state import AgentStateManager
 from emergent.agents.memory import MemoryManager
 from emergent.engine.context import ContextBuilder
@@ -114,23 +114,51 @@ class Orchestrator:
 
         await self.state_mgr.apply_needs_decay(agent)
 
+        location_name = "unknown"
+        if agent.current_location_id is not None:
+            lm_result = await self.db.execute(
+                select(Landmark).where(Landmark.id == agent.current_location_id)
+            )
+            lm = lm_result.scalar_one_or_none()
+            if lm:
+                location_name = lm.name
+
         ctx = await self.context_builder.assemble(agent)
 
-        response = await self.provider.generate(
-            system_prompt=ctx["system_prompt"],
-            messages=[],
-            tools=ctx["tools"],
-            agent=agent,
-        )
+        try:
+            response = await asyncio.wait_for(
+                self.provider.generate(
+                    system_prompt=ctx["system_prompt"],
+                    messages=[],
+                    tools=ctx["tools"],
+                    agent=agent,
+                ),
+                timeout=60,
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"  [{agent.name}] LLM timed out after 60s")
+            response = type("Response", (), {"content": None, "tool_calls": []})()
 
         tool_results = []
         for tc in response.tool_calls:
             tool = self.registry.get(tc.name)
             if not tool:
+                logger.warning(f"  [{agent.name}] Unknown tool: {tc.name}")
                 continue
+
+            if tool.location_gate or tool.agent_gate:
+                # tool.agent_gate is the agent name or special token
+                if tool.agent_gate and tool.agent_gate != agent.name:
+                    logger.warning(f"  [{agent.name}] Gate denied: {tc.name} (requires agent {tool.agent_gate})")
+                    continue
+                if tool.location_gate and tool.location_gate != location_name:
+                    logger.warning(f"  [{agent.name}] Gate denied: {tc.name} (requires location {tool.location_gate})")
+                    continue
+
+            tc_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, tc.id)
             try:
                 existing = await self.db.execute(
-                    select(ToolCall).where(ToolCall.id == uuid.UUID(tc.id))
+                    select(ToolCall).where(ToolCall.id == tc_uuid)
                 )
                 existing_call = existing.scalar_one_or_none()
                 if existing_call:
@@ -140,7 +168,7 @@ class Orchestrator:
                 pass
             result = await tool.execute(agent, tc.params, self.db, self.provider)
             call = ToolCall(
-                id=uuid.uuid4(),
+                id=tc_uuid,
                 turn_id=turn.id,
                 tool_name=tc.name,
                 params=tc.params,
@@ -179,8 +207,16 @@ class Orchestrator:
 
         content_preview = (response.content or "(silent)")[:200]
         tool_summary = ", ".join(f"{tc.name}({tc.params})" for tc in response.tool_calls)
+        sep = "─" * 60
+        location_tag = f"@ {location_name}" if location_name != "unknown" else ""
         logger.info(
-            f"  [{agent.name}] {content_preview}"
+            f"  {sep}"
+        )
+        logger.info(
+            f"  ▶ {agent.name:>12} ({agent.energy:3.0f}%⚡ {agent.knowledge:3.0f}%🧠 {agent.influence:3.0f}%🎯) {location_tag}"
+        )
+        logger.info(
+            f"    {content_preview}"
             + (f" | tools: {tool_summary}" if tool_summary else "")
         )
 
@@ -229,6 +265,7 @@ class Orchestrator:
             except NotImplementedError:
                 pass
 
+        round_number = 0
         try:
             while self._running and not stop_event.is_set():
                 if duration_seconds:
@@ -241,11 +278,18 @@ class Orchestrator:
                     logger.info("No living agents -- ending simulation")
                     break
 
+                round_number += 1
+                round_sep = "█" * 60
+                logger.info(f"")
+                logger.info(f"  {round_sep}")
+                logger.info(f"  █  ROUND {round_number}  ({len(agents)} agents)")
+                logger.info(f"  {round_sep}")
+                logger.info(f"")
+
                 for agent in agents:
                     if stop_event.is_set():
                         break
                     result = await self.run_turn(agent)
-                    logger.info(f"  --- Turn {result['turn_number']} done")
 
                 if not stop_event.is_set():
                     await self.advance_simulation()

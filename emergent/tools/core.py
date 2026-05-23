@@ -139,10 +139,31 @@ class ReadMessagesTool(Tool):
     parameters = []
 
     async def execute(self, agent, params, db, llm):
+        from sqlalchemy import select, update
+        from emergent.db.models import Message
+        result = await db.execute(
+            select(Message).where(
+                Message.to_id == agent.id,
+                Message.is_read == False,
+            ).order_by(Message.created_at.desc())
+        )
+        messages = result.scalars().all()
+        await db.execute(
+            update(Message)
+            .where(
+                Message.to_id == agent.id,
+                Message.is_read == False,
+            )
+            .values(is_read=True)
+        )
+        await db.flush()
+        if not messages:
+            return ToolResult(success=True, data={"messages": []}, observation="You have no unread messages.")
+        lines = "\n".join(f"From {m.from_id}: {m.body}" for m in messages)
         return ToolResult(
             success=True,
-            data={"messages": []},
-            observation="You have no unread messages.",
+            data={"messages": [{"from": str(m.from_id), "subject": m.subject, "body": m.body} for m in messages]},
+            observation=f"You read {len(messages)} message(s).\n{lines}",
         )
 
 

@@ -48,6 +48,10 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
             tool = registry.get(tc.name)
             if tool:
                 await tool.execute(listener, tc.params, db, provider)
+                await memory_mgr.add_memory(
+                    listener.id,
+                    f"[Reaction] Used {tc.name} in response to {speaker.name}",
+                )
 
             if tc.name == "say_to_agent" or tc.name == "think_aloud":
                 from emergent.db.models import Speech
@@ -59,6 +63,10 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
                     location_id=listener.current_location_id,
                 ))
                 await db.flush()
+                await memory_mgr.add_memory(
+                    listener.id,
+                    f"[Reaction] Responded to {speaker.name}: {speech_text[:100]}",
+                )
                 await handle_reactions(
                     listener, speech_text,
                     db, registry, state_mgr, memory_mgr,

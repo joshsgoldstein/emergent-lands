@@ -333,6 +333,36 @@ class WorldEvent(Base):
     )
 
 
+class BillboardPost(Base):
+    __tablename__ = "billboard_posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id")
+    )
+    agent_name: Mapped[str] = mapped_column(String)
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=sa_func.now()
+    )
+
+
+class Complaint(Base):
+    __tablename__ = "complaints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id")
+    )
+    agent_name: Mapped[str] = mapped_column(String)
+    target: Mapped[str] = mapped_column(String)
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String, default="filed")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=sa_func.now()
+    )
+
+
 class CommunityEvent(Base):
     __tablename__ = "community_events"
 

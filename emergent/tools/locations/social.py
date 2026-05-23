@@ -1,6 +1,6 @@
 from sqlalchemy import select
 
-from emergent.db.models import CommunityEvent
+from emergent.db.models import BillboardPost, CommunityEvent, Complaint
 from emergent.tools.base import Parameter, Tool, ToolResult
 
 
@@ -64,12 +64,11 @@ class PostToBillboardTool(Tool):
         Parameter(name="message", type="string", description="The message to post"),
     ]
 
-    _posts = []
-
     async def execute(self, agent, params, db, llm):
         message = params.get("message", "")
-        poster = agent.name if agent else "unknown"
-        PostToBillboardTool._posts.append({"agent": poster, "message": message})
+        post = BillboardPost(agent_id=agent.id, agent_name=agent.name, message=message)
+        db.add(post)
+        await db.flush()
         return ToolResult(
             success=True,
             data={"message": message},
@@ -84,10 +83,13 @@ class ReadBillboardTool(Tool):
     parameters = []
 
     async def execute(self, agent, params, db, llm):
-        posts = list(PostToBillboardTool._posts)
+        result = await db.execute(
+            select(BillboardPost).order_by(BillboardPost.created_at.desc()).limit(50)
+        )
+        posts = result.scalars().all()
         return ToolResult(
             success=True,
-            data={"posts": posts},
+            data={"posts": [{"agent": p.agent_name, "message": p.message} for p in posts]},
             observation=f"The billboard has {len(posts)} post(s).",
         )
 
@@ -169,25 +171,20 @@ class FileComplaintTool(Tool):
         Parameter(name="reason", type="string", description="Reason for the complaint"),
     ]
 
-    _complaints = {}
-    _next_id = 0
-
     async def execute(self, agent, params, db, llm):
-        target = params.get("target", "")
-        reason = params.get("reason", "")
-        complainant = agent.name if agent else "unknown"
-        FileComplaintTool._next_id += 1
-        complaint_id = FileComplaintTool._next_id
-        FileComplaintTool._complaints[complaint_id] = {
-            "target": target,
-            "reason": reason,
-            "complainant": complainant,
-            "status": "filed",
-        }
+        c = Complaint(
+            agent_id=agent.id,
+            agent_name=agent.name,
+            target=params.get("target", ""),
+            reason=params.get("reason", ""),
+            status="filed",
+        )
+        db.add(c)
+        await db.flush()
         return ToolResult(
             success=True,
-            data={"complaint_id": complaint_id, "status": "filed"},
-            observation=f"Complaint #{complaint_id} filed against {target}.",
+            data={"complaint_id": c.id, "status": "filed"},
+            observation=f"Complaint #{c.id} filed against {params.get('target', '')}.",
         )
 
 
@@ -200,15 +197,17 @@ class CheckComplaintStatusTool(Tool):
     ]
 
     async def execute(self, agent, params, db, llm):
-        complaint_id = params.get("complaint_id")
-        complaint = FileComplaintTool._complaints.get(complaint_id)
-        if not complaint:
+        result = await db.execute(
+            select(Complaint).where(Complaint.id == params.get("complaint_id"))
+        )
+        c = result.scalar_one_or_none()
+        if not c:
             return ToolResult(
                 success=False,
-                error=f"Complaint #{complaint_id} not found.",
+                error=f"Complaint #{params.get('complaint_id')} not found.",
             )
         return ToolResult(
             success=True,
-            data={"complaint_id": complaint_id, "status": complaint["status"]},
-            observation=f"Complaint #{complaint_id} status: {complaint['status']}.",
+            data={"complaint_id": c.id, "status": c.status},
+            observation=f"Complaint #{c.id} status: {c.status}.",
         )

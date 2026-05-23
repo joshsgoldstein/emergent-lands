@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from emergent.db.models import Agent, CommunityEvent
+from emergent.db.models import Agent, BillboardPost, CommunityEvent, Complaint
 from emergent.tools.base import ToolResult
 from emergent.tools.locations.research import (
     BrowsePapersTool,
@@ -195,17 +195,21 @@ class TestPostToBillboardTool:
     async def test_location_gate(self):
         assert PostToBillboardTool.location_gate == "Agent Billboard"
 
-    async def test_execute_posts_message(self, agent):
-        PostToBillboardTool._posts.clear()
+    async def test_execute_posts_message(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = PostToBillboardTool()
-        result = await tool.execute(agent, {"message": "Hello world!"}, None, None)
+        result = await tool.execute(agent, {"message": "Hello world!"}, db_session, None)
         assert result.success
         assert result.data["message"] == "Hello world!"
-        assert len(PostToBillboardTool._posts) == 1
 
-    async def test_returns_tool_result(self, agent):
+    async def test_returns_tool_result(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = PostToBillboardTool()
-        result = await tool.execute(agent, {"message": "Hi"}, None, None)
+        result = await tool.execute(agent, {"message": "Hi"}, db_session, None)
         assert isinstance(result, ToolResult)
 
 
@@ -214,18 +218,23 @@ class TestReadBillboardTool:
     async def test_location_gate(self):
         assert ReadBillboardTool.location_gate == "Agent Billboard"
 
-    async def test_execute_returns_posts(self, agent):
-        PostToBillboardTool._posts.clear()
-        PostToBillboardTool._posts.append({"agent": "TestAgent", "message": "Hello!"})
+    async def test_execute_returns_posts(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        db_session.add(BillboardPost(agent_id=agent.id, agent_name=agent.name, message="Hello!"))
+        await db_session.flush()
         tool = ReadBillboardTool()
-        result = await tool.execute(agent, {}, None, None)
+        result = await tool.execute(agent, {}, db_session, None)
         assert result.success
         assert len(result.data["posts"]) == 1
         assert result.data["posts"][0]["message"] == "Hello!"
 
-    async def test_returns_tool_result(self, agent):
+    async def test_returns_tool_result(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = ReadBillboardTool()
-        result = await tool.execute(agent, {}, None, None)
+        result = await tool.execute(agent, {}, db_session, None)
         assert isinstance(result, ToolResult)
 
 
@@ -304,18 +313,22 @@ class TestFileComplaintTool:
     async def test_location_gate(self):
         assert FileComplaintTool.location_gate == "Police Station"
 
-    async def test_execute_files_complaint(self, agent):
-        FileComplaintTool._complaints.clear()
-        FileComplaintTool._next_id = 0
+    async def test_execute_files_complaint(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = FileComplaintTool()
-        result = await tool.execute(agent, {"target": "Flora", "reason": "Theft"}, None, None)
+        result = await tool.execute(agent, {"target": "Flora", "reason": "Theft"}, db_session, None)
         assert result.success
-        assert result.data["complaint_id"] == 1
+        assert result.data["complaint_id"] is not None
         assert result.data["status"] == "filed"
 
-    async def test_returns_tool_result(self, agent):
+    async def test_returns_tool_result(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = FileComplaintTool()
-        result = await tool.execute(agent, {"target": "X", "reason": "Y"}, None, None)
+        result = await tool.execute(agent, {"target": "X", "reason": "Y"}, db_session, None)
         assert isinstance(result, ToolResult)
 
 
@@ -324,26 +337,33 @@ class TestCheckComplaintStatusTool:
     async def test_location_gate(self):
         assert CheckComplaintStatusTool.location_gate == "Police Station"
 
-    async def test_execute_returns_status(self, agent):
-        FileComplaintTool._complaints.clear()
-        FileComplaintTool._next_id = 0
+    async def test_execute_returns_status(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = FileComplaintTool()
-        file_result = await tool.execute(agent, {"target": "Flora", "reason": "Test"}, None, None)
+        file_result = await tool.execute(agent, {"target": "Flora", "reason": "Test"}, db_session, None)
         complaint_id = file_result.data["complaint_id"]
 
         check_tool = CheckComplaintStatusTool()
-        result = await check_tool.execute(agent, {"complaint_id": complaint_id}, None, None)
+        result = await check_tool.execute(agent, {"complaint_id": complaint_id}, db_session, None)
         assert result.success
         assert result.data["status"] == "filed"
         assert result.data["complaint_id"] == complaint_id
 
-    async def test_returns_error_for_missing_complaint(self, agent):
+    async def test_returns_error_for_missing_complaint(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = CheckComplaintStatusTool()
-        result = await tool.execute(agent, {"complaint_id": 99999}, None, None)
+        result = await tool.execute(agent, {"complaint_id": 99999}, db_session, None)
         assert not result.success
         assert "not found" in result.error
 
-    async def test_returns_tool_result(self, agent):
+    async def test_returns_tool_result(self, db_session, agent):
+        db_agent = Agent(id=agent.id, name=agent.name)
+        db_session.add(db_agent)
+        await db_session.flush()
         tool = CheckComplaintStatusTool()
-        result = await tool.execute(agent, {"complaint_id": 1}, None, None)
+        result = await tool.execute(agent, {"complaint_id": 1}, db_session, None)
         assert isinstance(result, ToolResult)
