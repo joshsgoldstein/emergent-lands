@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -9,6 +10,44 @@ from sqlalchemy import select
 from emergent.db.connection import DatabaseManager, get_database_url
 from emergent.db.base import Base
 from emergent.db.models import Agent, Landmark, SimulationSession
+from emergent.tools.registry import ToolRegistry
+from emergent.tools.core import register_all_core_tools
+from emergent.tools.locations.governance import (
+    SubmitProposalTool, VoteOnProposalTool, ReadConstitutionTool,
+    CommentOnProposalTool, ListProposalsTool,
+)
+from emergent.tools.locations.economy import (
+    SubmitPitchTool, VoteForPitchTool, ListPitchesTool,
+    RechargeEnergyTool, PayCreditsTool, BoostTurnTool,
+)
+from emergent.tools.locations.research import (
+    DoDeepResearchTool, BrowsePapersTool, PublishToArchiveTool, SearchArchiveTool,
+)
+from emergent.tools.locations.social import (
+    ProposeEventTool, ListEventsTool, PostToBillboardTool, ReadBillboardTool,
+    ExtractCodeTool, BrowseToolRegistryTool, PrayTool,
+    CheckAgentPopularityTool, FileComplaintTool, CheckComplaintStatusTool,
+)
+from emergent.agents.state import AgentStateManager
+from emergent.agents.memory import MemoryManager
+from emergent.agents.profiles import discover_agents, load_agent_profile
+from emergent.engine.context import ContextBuilder
+from emergent.engine.orchestrator import Orchestrator
+from emergent.engine.economy import CreditManager
+from emergent.engine.governance import GovernanceManager
+from emergent.models.router import ProviderRouter, ProviderConfig
+from emergent.world.config import load_world_config
+
+
+def _duration_to_seconds(duration_str: str) -> int:
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*([mh])$", duration_str.strip())
+    if not m:
+        return int(float(duration_str) * 3600)
+    amount = float(m.group(1))
+    unit = m.group(2)
+    if unit == "m":
+        return int(amount * 60)
+    return int(amount * 3600)
 from emergent.tools.registry import ToolRegistry
 from emergent.tools.core import register_all_core_tools
 from emergent.tools.locations.governance import (
@@ -153,7 +192,7 @@ def generate_session_name(world_name: str) -> str:
 
 async def run_simulation(
     world_path: str,
-    duration_hours: float,
+    duration: str,
     resume: str | None = None,
     name: str | None = None,
 ):
@@ -161,7 +200,7 @@ async def run_simulation(
     logger.info(f"Loading world: {world_path}")
 
     world_config = load_world_config(world_path)
-    logger.info(f"World: {world_config.name} | Agents: {len(world_config.agents)} | Duration: {duration_hours}h")
+    logger.info(f"World: {world_config.name} | Agents: {len(world_config.agents)} | Duration: {duration}")
 
     db_mgr = DatabaseManager(get_database_url())
     await db_mgr.initialize(echo=False)
@@ -220,8 +259,8 @@ async def run_simulation(
             await orch.initialize_simulation(world_path, session_name)
             logger.info(f"Session: {session_name}")
 
-        duration_seconds = int(duration_hours * 3600)
-        logger.info(f"Starting simulation for {duration_hours}h ({duration_seconds}s)")
+        duration_seconds = _duration_to_seconds(duration)
+        logger.info(f"Starting simulation for {duration} ({duration_seconds}s)")
         await orch.run_simulation(duration_seconds=duration_seconds)
 
         await db.commit()
@@ -235,7 +274,7 @@ def cli():
 
 @cli.command()
 @click.option("--world", default="config/worlds/mvp.yaml", help="World config path")
-@click.option("--duration", default=48.0, type=float, help="Duration in hours (e.g. 0.17 = 10 minutes)")
+@click.option("--duration", default="1h", type=str, help="Duration (e.g., '30m', '2h', '0.5' for hours)")
 @click.option("--resume", default=None, help="Resume a named session")
 @click.option("--name", default=None, help="Name for this session (auto-generated if omitted)")
 def run(world, duration, resume, name):
