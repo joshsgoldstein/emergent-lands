@@ -155,7 +155,7 @@ class Orchestrator:
                 current_turn_number=self._turn_number,
             )
         )
-        await self.db.commit()
+        await self.db.flush()
         return {
             "agent": agent.name,
             "turn_number": turn.turn_number,
@@ -202,15 +202,18 @@ class Orchestrator:
 
         finally:
             self._running = False
-            await self.db.execute(
-                update(SimulationSession)
-                .where(SimulationSession.id == self.session_id)
-                .values(
-                    status="paused",
-                    completed_at=datetime.now(timezone.utc),
+            try:
+                await self.db.execute(
+                    update(SimulationSession)
+                    .where(SimulationSession.id == self.session_id)
+                    .values(
+                        status="paused",
+                        completed_at=datetime.now(timezone.utc),
+                    )
                 )
-            )
-            await self.db.commit()
+                await self.db.commit()
+            except Exception:
+                await self.db.rollback()
 
     async def graceful_shutdown(self):
         self._running = False
