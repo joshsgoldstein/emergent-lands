@@ -147,7 +147,7 @@ class Orchestrator:
             )
         await self.memory_mgr.add_memory(agent.id, f"[Turn {self._turn_number}] {action_text.strip()}")
 
-        content_preview = (response.content or "")[:200]
+        content_preview = (response.content or "(silent)")[:200]
         tool_summary = ", ".join(f"{tc.name}({tc.params})" for tc in response.tool_calls)
         logger.info(
             f"  [{agent.name}] {content_preview}"
