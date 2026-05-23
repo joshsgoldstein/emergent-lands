@@ -153,7 +153,7 @@ def generate_session_name(world_name: str) -> str:
 
 async def run_simulation(
     world_path: str,
-    duration_hours: int,
+    duration_hours: float,
     resume: str | None = None,
     name: str | None = None,
 ):
@@ -236,7 +236,7 @@ def cli():
 
 @cli.command()
 @click.option("--world", default="config/worlds/mvp.yaml", help="World config path")
-@click.option("--duration", default=48, type=int, help="Duration in hours")
+@click.option("--duration", default=48.0, type=float, help="Duration in hours (e.g. 0.17 = 10 minutes)")
 @click.option("--resume", default=None, help="Resume a named session")
 @click.option("--name", default=None, help="Name for this session (auto-generated if omitted)")
 def run(world, duration, resume, name):
