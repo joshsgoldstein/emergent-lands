@@ -218,6 +218,7 @@ async def run_simulation(
     router = build_router(world_config.providers)
 
     model_routing = world_config.model_routing
+    agent_configs = world_config.agent_configs_dict()
 
     # create_all on its own connection to avoid DDL-vs-DML deadlock
     async with db_mgr.engine.begin() as conn:
@@ -242,7 +243,7 @@ async def run_simulation(
                 await seed_world(db, world_config)
                 orch = Orchestrator(
                     db, registry, state_mgr, memory_mgr, context_builder, router, model_routing,
-                    session_id=session_id,
+                    session_id=session_id, agent_configs=agent_configs,
                 )
                 await orch.initialize_simulation(world_path, session_name)
             else:
@@ -252,7 +253,7 @@ async def run_simulation(
                     return
                 orch = Orchestrator(
                     db, registry, state_mgr, memory_mgr, context_builder, router, model_routing,
-                    session_id=session_id,
+                    session_id=session_id, agent_configs=agent_configs,
                 )
                 recovered = await orch.recover()
                 if recovered:
@@ -263,7 +264,7 @@ async def run_simulation(
             await seed_world(db, world_config)
             orch = Orchestrator(
                 db, registry, state_mgr, memory_mgr, context_builder, router, model_routing,
-                session_id=session_id,
+                session_id=session_id, agent_configs=agent_configs,
             )
             await orch.initialize_simulation(world_path, session_name)
             logger.info(f"Session: {session_name}")

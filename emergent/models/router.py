@@ -49,12 +49,22 @@ class ProviderRouter:
             )
         raise ValueError(f"Unknown provider type: {config.provider}")
 
-    def get_provider(self, name: str = "default") -> LLMProvider:
-        if name in self._providers:
-            return self._providers[name]
+    def get_provider(self, name: str = "default", model: Optional[str] = None) -> LLMProvider:
+        cache_key = f"{name}:{model}" if model else name
+        if model is None and cache_key in self._providers:
+            return self._providers[cache_key]
         if name not in self._configs:
             raise ValueError(f"No provider configured for '{name}'")
         config = self._configs[name]
+        if model:
+            config = ProviderConfig(
+                provider=config.provider,
+                model=model,
+                api_key=config.api_key,
+                api_key_env=config.api_key_env,
+                base_url=config.base_url,
+                base_url_env=config.base_url_env,
+            )
         provider = self._build_provider(name, config)
-        self._providers[name] = provider
+        self._providers[cache_key] = provider
         return provider

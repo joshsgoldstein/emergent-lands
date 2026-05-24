@@ -48,6 +48,7 @@ class Orchestrator:
         provider_router,
         model_routing: dict,
         session_id: uuid.UUID,
+        agent_configs: Optional[dict] = None,
     ):
         self.db = db
         self.registry = registry
@@ -56,11 +57,15 @@ class Orchestrator:
         self.context_builder = context_builder
         self.provider_router = provider_router
         self.model_routing = model_routing
+        self.agent_configs = agent_configs or {}
         self.session_id = session_id
         self._running = False
         self._turn_number = 0
 
     def _provider_for_agent(self, agent_name: str):
+        cfg = self.agent_configs.get(agent_name)
+        if cfg and cfg.provider:
+            return self.provider_router.get_provider(cfg.provider, model=cfg.model)
         overrides = self.model_routing.get("overrides", {})
         provider_name = overrides.get(agent_name) or self.model_routing.get("default", "openai")
         return self.provider_router.get_provider(provider_name)
@@ -200,6 +205,7 @@ class Orchestrator:
                     agent, msg,
                     self.db, self.registry, self.state_mgr, self.memory_mgr,
                     self.context_builder, self.provider_router, self.model_routing,
+                    agent_configs=self.agent_configs,
                 )
 
         await self.db.flush()

@@ -19,8 +19,11 @@ providers:
     base_url: "http://localhost:8899/v1"
 
 agents:
-  - Anchor
-  - Flora
+  - name: Anchor
+    provider: openai
+    model: gpt-5-mini
+  - name: Flora
+    provider: local
 
 landmarks:
   - Town Hall

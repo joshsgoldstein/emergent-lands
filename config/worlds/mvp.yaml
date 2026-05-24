@@ -5,11 +5,7 @@ real_time_scale: 1.0
 
 model_routing:
   default: local
-  # Assign per-agent providers (keys = agent name, values = provider name):
-  overrides:
-    # Anchor: openai
-    # Flora: openai
-    {}
+  overrides: {}
 
 providers:
   openai:
@@ -23,11 +19,19 @@ providers:
     base_url: "http://localhost:8899/v1"
 
 agents:
-  - Anchor
-  - Flora
-  - Spark
-  - Mira
-  - Genome
+  - name: Anchor
+    provider: openai
+    model: gpt-5-mini
+  - name: Flora
+    provider: openai
+    model: gpt-4o
+  - name: Spark
+    provider: local
+  - name: Mira
+    provider: openai
+    model: gpt-5-mini
+  - name: Genome
+    provider: local
 
 landmarks:
   - Town Hall

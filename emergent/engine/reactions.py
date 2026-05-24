@@ -6,13 +6,17 @@ MAX_REACTION_EXCHANGES = 30
 MAX_LISTENERS = 4
 
 
-def _provider_for_agent(router, model_routing, agent_name):
+def _provider_for_agent(router, model_routing, agent_name, agent_configs=None):
+    agent_configs = agent_configs or {}
+    cfg = agent_configs.get(agent_name)
+    if cfg and cfg.provider:
+        return router.get_provider(cfg.provider, model=cfg.model)
     overrides = model_routing.get("overrides", {})
     provider_name = overrides.get(agent_name) or model_routing.get("default", "openai")
     return router.get_provider(provider_name)
 
 
-async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr, context_builder, router, model_routing, exchange_count=0):
+async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr, context_builder, router, model_routing, exchange_count=0, agent_configs=None):
     if exchange_count >= MAX_REACTION_EXCHANGES:
         return
 
@@ -36,7 +40,7 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
         if exchange_count >= MAX_REACTION_EXCHANGES:
             break
 
-        listener_provider = _provider_for_agent(router, model_routing, listener.name)
+        listener_provider = _provider_for_agent(router, model_routing, listener.name, agent_configs)
 
         logger.info(f"    ↻ {listener.name} overheard {speaker.name}: \"{speech[:120]}\"")
 
@@ -81,4 +85,5 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
                     listener, speech_text,
                     db, registry, state_mgr, memory_mgr,
                     context_builder, router, model_routing, exchange_count,
+                    agent_configs=agent_configs,
                 )

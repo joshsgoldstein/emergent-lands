@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union
 
 import yaml
 
@@ -16,6 +16,13 @@ class LandmarkConfig:
 
 
 @dataclass
+class AgentConfig:
+    name: str
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+@dataclass
 class WorldConfig:
     name: str
     duration_hours: int = 48
@@ -23,10 +30,17 @@ class WorldConfig:
     real_time_scale: float = 1.0
     model_routing: dict = field(default_factory=lambda: {"default": "openai", "overrides": {}})
     providers: dict = field(default_factory=dict)
-    agents: list[str] = field(default_factory=list)
+    agents: list[Union[str, AgentConfig]] = field(default_factory=list)
     landmarks: list[str] = field(default_factory=list)
     landmarks_config: dict[str, LandmarkConfig] = field(default_factory=dict)
     spawn: dict[str, str] = field(default_factory=dict)
+
+    def agent_configs_dict(self) -> dict[str, AgentConfig]:
+        result = {}
+        for entry in self.agents:
+            if isinstance(entry, AgentConfig):
+                result[entry.name] = entry
+        return result
 
 
 def load_landmark_config(path: str) -> LandmarkConfig:
@@ -66,6 +80,14 @@ def load_world_config(
                 except Exception:
                     pass
 
+    raw_agents = data.get("agents", [])
+    parsed_agents = []
+    for entry in raw_agents:
+        if isinstance(entry, dict):
+            parsed_agents.append(AgentConfig(**entry))
+        else:
+            parsed_agents.append(entry)
+
     return WorldConfig(
         name=data["name"],
         duration_hours=data.get("duration_hours", 48),
@@ -73,7 +95,7 @@ def load_world_config(
         real_time_scale=data.get("real_time_scale", 1.0),
         model_routing=data.get("model_routing", {"default": "openai", "overrides": {}}),
         providers=data.get("providers", {}),
-        agents=data.get("agents", []),
+        agents=parsed_agents,
         landmarks=data.get("landmarks", []),
         landmarks_config=landmarks_config,
         spawn=data.get("spawn", {}),
