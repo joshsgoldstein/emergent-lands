@@ -78,6 +78,14 @@ Each agent has soul entries for behavior direction + 3 custom tools.
 - Web UI (2D interactive world)
 - Real-time streaming of simulation events via WebSocket
 
+### Model Routing Ideas (Future)
+
+Currently model routing is per-agent via `model_routing.overrides`. Extend to:
+
+- **Per-landmark routing** — specific LLM used when agent is at a given landmark (e.g., Town Hall debates use a stronger model)
+- **Per-activity routing** — specific LLM for certain tool categories (e.g., heavy reasoning tools use GPT, routine tools use local)
+- **Inline per-agent config** — assign provider + model directly in the `agents` list instead of via separate overrides dict
+
 ## Tests
 
 ```text
