@@ -5,7 +5,11 @@ real_time_scale: 1.0
 
 model_routing:
   default: local
-  overrides: {}
+  # Assign per-agent providers (keys = agent name, values = provider name):
+  overrides:
+    # Anchor: openai
+    # Flora: openai
+    {}
 
 providers:
   openai:

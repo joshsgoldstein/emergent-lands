@@ -6,7 +6,13 @@ MAX_REACTION_EXCHANGES = 30
 MAX_LISTENERS = 4
 
 
-async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr, context_builder, provider, exchange_count=0):
+def _provider_for_agent(router, model_routing, agent_name):
+    overrides = model_routing.get("overrides", {})
+    provider_name = overrides.get(agent_name) or model_routing.get("default", "openai")
+    return router.get_provider(provider_name)
+
+
+async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr, context_builder, router, model_routing, exchange_count=0):
     if exchange_count >= MAX_REACTION_EXCHANGES:
         return
 
@@ -30,6 +36,8 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
         if exchange_count >= MAX_REACTION_EXCHANGES:
             break
 
+        listener_provider = _provider_for_agent(router, model_routing, listener.name)
+
         logger.info(f"    ↻ {listener.name} overheard {speaker.name}: \"{speech[:120]}\"")
 
         ctx = await context_builder.assemble(listener)
@@ -39,7 +47,7 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
             f"{ctx['system_prompt']}"
         )
 
-        response = await provider.generate(
+        response = await listener_provider.generate(
             system_prompt=system_prompt,
             messages=[],
             tools=ctx["tools"],
@@ -49,7 +57,7 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
         for tc in response.tool_calls:
             tool = registry.get(tc.name)
             if tool:
-                await tool.execute(listener, tc.params, db, provider)
+                await tool.execute(listener, tc.params, db, listener_provider)
                 await memory_mgr.add_memory(
                     listener.id,
                     f"[Reaction] Used {tc.name} in response to {speaker.name}",
@@ -72,5 +80,5 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
                 await handle_reactions(
                     listener, speech_text,
                     db, registry, state_mgr, memory_mgr,
-                    context_builder, provider, exchange_count,
+                    context_builder, router, model_routing, exchange_count,
                 )

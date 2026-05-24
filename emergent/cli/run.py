@@ -216,9 +216,8 @@ async def run_simulation(
     logger.info(f"Registry: {len(registry)} tools")
 
     router = build_router(world_config.providers)
-    provider = router.get_provider(
-        world_config.model_routing.get("default", "openai")
-    )
+
+    model_routing = world_config.model_routing
 
     # create_all on its own connection to avoid DDL-vs-DML deadlock
     async with db_mgr.engine.begin() as conn:
@@ -242,7 +241,7 @@ async def run_simulation(
                 session_id = uuid.uuid4()
                 await seed_world(db, world_config)
                 orch = Orchestrator(
-                    db, registry, state_mgr, memory_mgr, context_builder, provider,
+                    db, registry, state_mgr, memory_mgr, context_builder, router, model_routing,
                     session_id=session_id,
                 )
                 await orch.initialize_simulation(world_path, session_name)
@@ -252,7 +251,7 @@ async def run_simulation(
                     logger.info(f"Session '{resume}' already completed")
                     return
                 orch = Orchestrator(
-                    db, registry, state_mgr, memory_mgr, context_builder, provider,
+                    db, registry, state_mgr, memory_mgr, context_builder, router, model_routing,
                     session_id=session_id,
                 )
                 recovered = await orch.recover()
@@ -263,7 +262,7 @@ async def run_simulation(
         else:
             await seed_world(db, world_config)
             orch = Orchestrator(
-                db, registry, state_mgr, memory_mgr, context_builder, provider,
+                db, registry, state_mgr, memory_mgr, context_builder, router, model_routing,
                 session_id=session_id,
             )
             await orch.initialize_simulation(world_path, session_name)

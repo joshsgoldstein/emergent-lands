@@ -1,7 +1,7 @@
 import uuid
 
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from emergent.engine.orchestrator import Orchestrator
 from emergent.agents.state import AgentStateManager
@@ -10,6 +10,15 @@ from emergent.engine.context import ContextBuilder
 from emergent.tools.registry import ToolRegistry
 from emergent.tools.core import register_all_core_tools
 from emergent.models.base import LLMResponse, TokenUsage
+
+
+MODEL_ROUTING = {"default": "openai", "overrides": {}}
+
+
+def _mock_router(provider):
+    router = MagicMock()
+    router.get_provider.return_value = provider
+    return router
 
 
 @pytest.mark.asyncio
@@ -25,7 +34,7 @@ async def test_initialize_simulation(db_session):
     )
 
     sid = uuid.uuid4()
-    orch = Orchestrator(db_session, registry, sm, mm, cb, mock_provider, session_id=sid)
+    orch = Orchestrator(db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING, session_id=sid)
     session = await orch.initialize_simulation("config/worlds/mvp.yaml", "test-session")
     assert session.name == "test-session"
     assert session.status == "running"
@@ -49,7 +58,7 @@ async def test_run_turn_with_mock_provider(db_session):
     )
 
     sid = uuid.uuid4()
-    orch = Orchestrator(db_session, registry, sm, mm, cb, mock_provider, session_id=sid)
+    orch = Orchestrator(db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING, session_id=sid)
 
     from sqlalchemy import select
     from emergent.db.models import Landmark
@@ -77,7 +86,7 @@ async def test_recover_no_state(db_session):
     cb = ContextBuilder(db_session, registry)
 
     sid = uuid.uuid4()
-    orch = Orchestrator(db_session, registry, sm, mm, cb, None, session_id=sid)
+    orch = Orchestrator(db_session, registry, sm, mm, cb, _mock_router(None), MODEL_ROUTING, session_id=sid)
     state = await orch.recover()
     assert state is None
 
@@ -91,7 +100,7 @@ async def test_recover_with_interrupted_turns(db_session):
     cb = ContextBuilder(db_session, registry)
 
     sid = uuid.uuid4()
-    orch = Orchestrator(db_session, registry, sm, mm, cb, None, session_id=sid)
+    orch = Orchestrator(db_session, registry, sm, mm, cb, _mock_router(None), MODEL_ROUTING, session_id=sid)
     await orch.initialize_simulation("config/worlds/mvp.yaml", "crash-test")
 
     from sqlalchemy import select

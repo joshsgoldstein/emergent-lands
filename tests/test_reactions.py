@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy import select
 
 from emergent.agents.state import AgentStateManager
@@ -9,6 +9,15 @@ from emergent.engine.reactions import handle_reactions
 from emergent.tools.registry import ToolRegistry
 from emergent.tools.core import register_all_core_tools
 from emergent.models.base import LLMResponse, ToolCall, TokenUsage
+
+
+MODEL_ROUTING = {"default": "openai", "overrides": {}}
+
+
+def _mock_router(provider):
+    router = MagicMock()
+    router.get_provider.return_value = provider
+    return router
 
 
 @pytest.mark.asyncio
@@ -29,7 +38,7 @@ async def test_handle_reactions_no_nearby(db_session):
     agent.current_location_id = landmark.id
     await db_session.flush()
 
-    await handle_reactions(agent, "Hello?", db_session, registry, sm, mm, cb, mock_provider)
+    await handle_reactions(agent, "Hello?", db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING)
     mock_provider.generate.assert_not_called()
 
 
@@ -62,7 +71,7 @@ async def test_handle_reactions_with_listeners(db_session):
         finish_reason="stop",
     )
 
-    await handle_reactions(speaker, "Hi!", db_session, registry, sm, mm, cb, mock_provider)
+    await handle_reactions(speaker, "Hi!", db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING)
     mock_provider.generate.assert_called_once()
 
 
@@ -96,7 +105,7 @@ async def test_max_listeners(db_session):
         finish_reason="stop",
     )
 
-    await handle_reactions(speaker, "Everyone!", db_session, registry, sm, mm, cb, mock_provider)
+    await handle_reactions(speaker, "Everyone!", db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING)
     assert mock_provider.generate.call_count <= 4
 
 
@@ -143,7 +152,7 @@ async def test_reaction_creates_speech(db_session):
         ),
     ]
 
-    await handle_reactions(speaker, "Let's debate", db_session, registry, sm, mm, cb, mock_provider)
+    await handle_reactions(speaker, "Let's debate", db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING)
 
     result = await db_session.execute(
         select(Speech).where(Speech.agent_id == listener.id)

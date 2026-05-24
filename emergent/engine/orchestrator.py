@@ -45,7 +45,8 @@ class Orchestrator:
         state_mgr: AgentStateManager,
         memory_mgr: MemoryManager,
         context_builder: ContextBuilder,
-        provider,
+        provider_router,
+        model_routing: dict,
         session_id: uuid.UUID,
     ):
         self.db = db
@@ -53,10 +54,16 @@ class Orchestrator:
         self.state_mgr = state_mgr
         self.memory_mgr = memory_mgr
         self.context_builder = context_builder
-        self.provider = provider
+        self.provider_router = provider_router
+        self.model_routing = model_routing
         self.session_id = session_id
         self._running = False
         self._turn_number = 0
+
+    def _provider_for_agent(self, agent_name: str):
+        overrides = self.model_routing.get("overrides", {})
+        provider_name = overrides.get(agent_name) or self.model_routing.get("default", "openai")
+        return self.provider_router.get_provider(provider_name)
 
     async def initialize_simulation(self, world_path: str, name: str):
         session = SimulationSession(
@@ -123,11 +130,13 @@ class Orchestrator:
             if lm:
                 location_name = lm.name
 
+        provider = self._provider_for_agent(agent.name)
+
         ctx = await self.context_builder.assemble(agent)
 
         try:
             response = await asyncio.wait_for(
-                self.provider.generate(
+                provider.generate(
                     system_prompt=ctx["system_prompt"],
                     messages=[],
                     tools=ctx["tools"],
@@ -166,7 +175,7 @@ class Orchestrator:
                     continue
             except (ValueError, AttributeError):
                 pass
-            result = await tool.execute(agent, tc.params, self.db, self.provider)
+            result = await tool.execute(agent, tc.params, self.db, provider)
             call = ToolCall(
                 id=tc_uuid,
                 turn_id=turn.id,
@@ -190,7 +199,7 @@ class Orchestrator:
                 await handle_reactions(
                     agent, msg,
                     self.db, self.registry, self.state_mgr, self.memory_mgr,
-                    self.context_builder, self.provider,
+                    self.context_builder, self.provider_router, self.model_routing,
                 )
 
         await self.db.flush()
