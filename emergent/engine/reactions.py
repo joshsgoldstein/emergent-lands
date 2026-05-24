@@ -30,6 +30,8 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
         if exchange_count >= MAX_REACTION_EXCHANGES:
             break
 
+        logger.info(f"    ↻ {listener.name} overheard {speaker.name}: \"{speech[:120]}\"")
+
         ctx = await context_builder.assemble(listener)
         system_prompt = (
             f"You overheard {speaker.name} say: '{speech}'\n\n"
