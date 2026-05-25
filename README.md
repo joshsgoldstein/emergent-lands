@@ -85,6 +85,8 @@ Agents cannot affect the world except through tool calls. Every action is observ
 
 Gates are enforced server-side in the orchestrator — location gate and agent gate are checked before any tool can execute.
 
+> **Agent-created tools are not yet implemented.** In the reference system, agents can write Python via `execute_python_code`, build new tools at TechHub, and register them through Town Hall infrastructure proposals + 70% vote. We've deferred this to Phase 3 — we want the governance system to prove itself with human-defined tools before turning tool creation over to the agents.
+
 ---
 
 ## Key Features

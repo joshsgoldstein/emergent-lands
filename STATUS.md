@@ -78,13 +78,14 @@ Each agent has soul entries for behavior direction + 3 custom tools.
 - Web UI (2D interactive world)
 - Real-time streaming of simulation events via WebSocket
 
-### Model Routing Ideas (Future)
+### Agent-Created Tools (Future)
 
-Currently model routing is per-agent via `model_routing.overrides`. Extend to:
+Not yet implemented — deliberate architectural decision for Phase 3. In the reference system, agents can write Python via `execute_python_code_tool`, build new tools at TechHub, and register them globally through a Town Hall infrastructure proposal + 70% vote. We'll add this once the base simulation is stable and the governance system has proven itself with human-defined tools.
+
+### Model Routing Ideas (Future)
 
 - **Per-landmark routing** — specific LLM used when agent is at a given landmark (e.g., Town Hall debates use a stronger model)
 - **Per-activity routing** — specific LLM for certain tool categories (e.g., heavy reasoning tools use GPT, routine tools use local)
-- **Inline per-agent config** — assign provider + model directly in the `agents` list instead of via separate overrides dict
 
 ## Tests
 
