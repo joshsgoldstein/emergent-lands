@@ -23,7 +23,12 @@ class OpenAIProvider(LLMProvider):
         base_url: Optional[str] = None,
     ):
         self.model_id = model
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            max_retries=0,
+            timeout=120,
+        )
 
     def _to_openai_tools(
         self, tools: list[ToolDefinition]

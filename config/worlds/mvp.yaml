@@ -22,20 +22,25 @@ providers:
     model: "deepseek/deepseek-v4-flash-free"
     api_key_env: "OPENAI_API_KEY"
     base_url: "https://openrouter.ai/api/v1"
+  nemotron:
+    provider: openai
+    model: "nvidia/nemotron-3-nano-30b-a3b:free"
+    api_key_env: "OPENAI_API_KEY"
+    base_url: "https://openrouter.ai/api/v1"
 
 agents:
   - name: Anchor
     provider: openrouter
     model: deepseek/deepseek-v4-flash-free
   - name: Flora
-    provider: openrouter
-    model: deepseek/deepseek-v4-flash-free
+    provider: nemotron
+    model: nvidia/nemotron-3-nano-30b-a3b:free
   - name: Spark
     provider: openrouter
     model: deepseek/deepseek-v4-flash-free
   - name: Mira
-    provider: openrouter
-    model: deepseek/deepseek-v4-flash-free
+    provider: nemotron
+    model: nvidia/nemotron-3-nano-30b-a3b:free
   - name: Genome
     provider: openrouter
     model: deepseek/deepseek-v4-flash-free
