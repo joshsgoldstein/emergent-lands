@@ -4,7 +4,7 @@ timezone: "America/New_York"
 real_time_scale: 1.0
 
 model_routing:
-  default: local
+  default: openrouter
   overrides: {}
 
 providers:
@@ -17,13 +17,19 @@ providers:
     model: "mlx-community/Qwen3.5-9B-4bit"
     api_key: "sk-no-key-required"
     base_url: "http://localhost:8899/v1"
+  openrouter:
+    provider: openai
+    model: "deepseek/deepseek-v4-flash-free"
+    api_key_env: "OPENROUTER_API_KEY"
+    base_url: "https://openrouter.ai/api/v1"
 
 agents:
   - name: Anchor
-    provider: openai
-    model: gpt-5-mini
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash-free
   - name: Flora
-    provider: local
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash-free
 
 landmarks:
   - Town Hall
