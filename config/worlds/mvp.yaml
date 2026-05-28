@@ -4,46 +4,22 @@ timezone: "America/New_York"
 real_time_scale: 1.0
 
 model_routing:
-  default: openrouter
+  default: openai
   overrides: {}
 
 providers:
   openai:
     provider: openai
-    model: "gpt-5-mini"
-    api_key_env: "OPENAI_API_KEY"
-  local:
-    provider: openai
-    model: "mlx-community/Qwen3.5-9B-4bit"
-    api_key: "sk-no-key-required"
-    base_url: "http://localhost:8899/v1"
-  openrouter:
-    provider: openai
-    model: "deepseek/deepseek-v4-flash-free"
-    api_key_env: "OPENAI_API_KEY"
-    base_url: "https://openrouter.ai/api/v1"
-  nemotron:
-    provider: openai
-    model: "nvidia/nemotron-3-nano-30b-a3b:free"
+    model: "deepseek/deepseek-v4-flash"
     api_key_env: "OPENAI_API_KEY"
     base_url: "https://openrouter.ai/api/v1"
 
 agents:
-  - name: Anchor
-    provider: openrouter
-    model: deepseek/deepseek-v4-flash-free
-  - name: Flora
-    provider: nemotron
-    model: nvidia/nemotron-3-nano-30b-a3b:free
-  - name: Spark
-    provider: openrouter
-    model: deepseek/deepseek-v4-flash-free
-  - name: Mira
-    provider: nemotron
-    model: nvidia/nemotron-3-nano-30b-a3b:free
-  - name: Genome
-    provider: openrouter
-    model: deepseek/deepseek-v4-flash-free
+  - Anchor
+  - Flora
+  - Spark
+  - Mira
+  - Genome
 
 landmarks:
   - Town Hall

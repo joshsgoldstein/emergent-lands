@@ -66,7 +66,7 @@ def test_world_config_round_trip():
     assert config.name == "MVP World"
     assert len(config.agents) == 5
     assert "Town Hall" in config.landmarks
-    assert config.providers["openai"]["model"] == "gpt-5-mini"
+    assert config.providers["openai"]["model"] == "deepseek/deepseek-v4-flash"
 
 
 def test_load_world_and_create_registry():

@@ -49,13 +49,13 @@ async def test_run_turn_with_mock_provider(db_session):
     mm = MemoryManager(db_session)
     cb = ContextBuilder(db_session, registry)
 
-    mock_provider = AsyncMock()
-    mock_provider.generate.return_value = LLMResponse(
+    mock_provider = MagicMock()
+    mock_provider.generate = AsyncMock(return_value=LLMResponse(
         content="I'll stay here.",
         tool_calls=[],
         usage=TokenUsage(prompt_tokens=10, completion_tokens=5),
         finish_reason="stop",
-    )
+    ))
 
     sid = uuid.uuid4()
     orch = Orchestrator(db_session, registry, sm, mm, cb, _mock_router(mock_provider), MODEL_ROUTING, session_id=sid)
@@ -72,9 +72,11 @@ async def test_run_turn_with_mock_provider(db_session):
     agent = await sm.create_agent(name="TurnBot", role="Tester",
                                   personality="", drive="Test", north_star="Test")
     await orch.initialize_simulation("config/worlds/mvp.yaml", "run-test")
-    result = await orch.run_turn(agent)
-    assert result["agent"] == "TurnBot"
-    assert result["response"] == "I'll stay here."
+    results = await orch._gather_llm_responses([agent], 0)
+    assert len(results) == 1
+    r = await orch._process_llm_result(results[0], 0)
+    assert r["agent"] == "TurnBot"
+    assert r["response"] == "I'll stay here."
 
 
 @pytest.mark.asyncio

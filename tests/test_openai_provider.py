@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 
 from emergent.models.base import ToolDefinition
 from emergent.models.openai_provider import OpenAIProvider
@@ -13,20 +13,20 @@ def test_provider_has_name_and_model():
 
 @pytest.mark.asyncio
 async def test_generate_returns_normalized_response():
-    mock_client = AsyncMock()
-    mock_message = AsyncMock()
+    mock_message = MagicMock()
     mock_message.content = "Hello from GPT"
     mock_message.tool_calls = None
-    mock_choice = AsyncMock()
+    mock_choice = MagicMock()
     mock_choice.message = mock_message
     mock_choice.finish_reason = "stop"
-    mock_usage = AsyncMock()
+    mock_usage = MagicMock()
     mock_usage.prompt_tokens = 50
     mock_usage.completion_tokens = 10
-    mock_response = AsyncMock()
+    mock_response = MagicMock()
     mock_response.choices = [mock_choice]
     mock_response.usage = mock_usage
-    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = mock_response
 
     provider = OpenAIProvider(api_key="test-key", model="gpt-5-mini")
     provider._client = mock_client

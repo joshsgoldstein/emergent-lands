@@ -113,45 +113,55 @@ class Orchestrator:
         self._turn_number = session.current_turn_number
         return session
 
-    async def run_turn(self, agent: Agent, turn_type: str = "regular") -> dict:
+    async def _gather_llm_responses(self, agents: list[Agent], turn_number: int) -> list[dict]:
+        """Run LLM calls for all agents in parallel. Returns list of (agent, response, context, location_name, provider)."""
+        async def llm_for_agent(agent: Agent):
+            location_name = "unknown"
+            if agent.current_location_id is not None:
+                lm_result = await self.db.execute(
+                    select(Landmark).where(Landmark.id == agent.current_location_id)
+                )
+                lm = lm_result.scalar_one_or_none()
+                if lm:
+                    location_name = lm.name
+            provider = self._provider_for_agent(agent.name)
+            ctx = await self.context_builder.assemble(agent)
+            try:
+                response = await asyncio.wait_for(
+                    provider.generate(
+                        system_prompt=ctx["system_prompt"],
+                        messages=[],
+                        tools=ctx["tools"],
+                        agent=agent,
+                    ),
+                    timeout=60,
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"  [{agent.name}] LLM timed out after 60s")
+                response = type("Response", (), {"content": None, "tool_calls": []})()
+            except Exception as e:
+                logger.error(f"  [{agent.name}] LLM error: {e}")
+                response = type("Response", (), {"content": None, "tool_calls": []})()
+            return {"agent": agent, "response": response, "ctx": ctx, "location_name": location_name, "provider": provider}
+        return await asyncio.gather(*[llm_for_agent(a) for a in agents])
+
+    async def _process_llm_result(self, result: dict, turn_number: int) -> dict:
+        agent = result["agent"]
+        response = result["response"]
+        ctx = result["ctx"]
+        location_name = result["location_name"]
+        provider = result["provider"]
+
+        await self.state_mgr.apply_needs_decay(agent)
         turn = AgentTurn(
             session_id=self.session_id,
             agent_id=agent.id,
-            turn_number=self._turn_number,
+            turn_number=turn_number,
             state="in_progress",
-            turn_type=turn_type,
+            turn_type="regular",
         )
         self.db.add(turn)
         await self.db.flush()
-
-        await self.state_mgr.apply_needs_decay(agent)
-
-        location_name = "unknown"
-        if agent.current_location_id is not None:
-            lm_result = await self.db.execute(
-                select(Landmark).where(Landmark.id == agent.current_location_id)
-            )
-            lm = lm_result.scalar_one_or_none()
-            if lm:
-                location_name = lm.name
-
-        provider = self._provider_for_agent(agent.name)
-
-        ctx = await self.context_builder.assemble(agent)
-
-        try:
-            response = await asyncio.wait_for(
-                provider.generate(
-                    system_prompt=ctx["system_prompt"],
-                    messages=[],
-                    tools=ctx["tools"],
-                    agent=agent,
-                ),
-                timeout=60,
-            )
-        except asyncio.TimeoutError:
-            logger.error(f"  [{agent.name}] LLM timed out after 60s")
-            response = type("Response", (), {"content": None, "tool_calls": []})()
 
         tool_results = []
         for tc in response.tool_calls:
@@ -218,7 +228,7 @@ class Orchestrator:
             action_text += " " + " ".join(
                 f"used {tc.name}" for tc in response.tool_calls
             )
-        await self.memory_mgr.add_memory(agent.id, f"[Turn {self._turn_number}] {action_text.strip()}")
+        await self.memory_mgr.add_memory(agent.id, f"[Turn {turn_number}] {action_text.strip()}")
 
         content_preview = (response.content or "(silent)")[:200]
         tool_summary = ", ".join(f"{tc.name}({tc.params})" for tc in response.tool_calls)
@@ -235,18 +245,9 @@ class Orchestrator:
             + (f" | tools: {tool_summary}" if tool_summary else "")
         )
 
-        self._turn_number += 1
-        await self.db.execute(
-            update(SimulationSession)
-            .where(SimulationSession.id == self.session_id)
-            .values(
-                current_turn_number=self._turn_number,
-            )
-        )
-        await self.db.commit()
         return {
             "agent": agent.name,
-            "turn_number": turn.turn_number,
+            "turn_number": turn_number,
             "response": response.content,
             "tool_calls": len(response.tool_calls),
             "tool_results": tool_results,
@@ -301,10 +302,19 @@ class Orchestrator:
                 logger.info(f"  {round_sep}")
                 logger.info(f"")
 
-                for agent in agents:
-                    if stop_event.is_set():
-                        break
-                    result = await self.run_turn(agent)
+                if not stop_event.is_set():
+                    llm_results = await self._gather_llm_responses(agents, self._turn_number)
+                    for r in llm_results:
+                        if stop_event.is_set():
+                            break
+                        await self._process_llm_result(r, self._turn_number)
+                    self._turn_number += 1
+                    await self.db.execute(
+                        update(SimulationSession)
+                        .where(SimulationSession.id == self.session_id)
+                        .values(current_turn_number=self._turn_number)
+                    )
+                    await self.db.commit()
 
                 if not stop_event.is_set():
                     await self.advance_simulation()

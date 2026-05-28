@@ -1,7 +1,8 @@
+import asyncio
 import json
 from typing import Optional
 
-from openai import AsyncOpenAI
+from openai import OpenAI
 from openai.types.chat import ChatCompletionToolParam
 
 from emergent.models.base import (
@@ -23,12 +24,13 @@ class OpenAIProvider(LLMProvider):
         base_url: Optional[str] = None,
     ):
         self.model_id = model
-        self._client = AsyncOpenAI(
+        self._client = OpenAI(
             api_key=api_key,
             base_url=base_url,
             max_retries=0,
             timeout=120,
         )
+        self._loop = None
 
     def _to_openai_tools(
         self, tools: list[ToolDefinition]
@@ -60,7 +62,8 @@ class OpenAIProvider(LLMProvider):
             )
         else:
             prompt_messages.extend(messages)
-        response = await self._client.chat.completions.create(
+        response = await asyncio.to_thread(
+            self._client.chat.completions.create,
             model=self.model_id,
             messages=prompt_messages,
             tools=openai_tools or None,

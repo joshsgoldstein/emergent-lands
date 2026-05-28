@@ -96,7 +96,7 @@ class AgentTurn(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("agent_id", "turn_number"),
+        UniqueConstraint("session_id", "agent_id", "turn_number"),
     )
 
 
