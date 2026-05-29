@@ -204,6 +204,7 @@ async def run_simulation(
     name: str | None = None,
 ):
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logger.info(f"Loading world: {world_path}")
 
     world_config = load_world_config(world_path)
@@ -275,6 +276,7 @@ async def run_simulation(
 
         await db.commit()
         logger.info("Simulation complete")
+        logger.info(orch.token_summary())
 
 
 @click.group()

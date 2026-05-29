@@ -1,6 +1,9 @@
 import asyncio
 import json
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletionToolParam
@@ -74,11 +77,16 @@ class OpenAIProvider(LLMProvider):
         tool_calls = []
         if msg.tool_calls:
             for tc in msg.tool_calls:
+                try:
+                    params = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    logger.warning("Malformed JSON in tool call arguments for %s: %s", tc.function.name, tc.function.arguments[:200])
+                    continue
                 tool_calls.append(
                     ToolCall(
                         id=tc.id,
                         name=tc.function.name,
-                        params=json.loads(tc.function.arguments),
+                        params=params,
                     )
                 )
         usage = None

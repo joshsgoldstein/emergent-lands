@@ -61,6 +61,24 @@ class Orchestrator:
         self.session_id = session_id
         self._running = False
         self._turn_number = 0
+        self._total_prompt_tokens = 0
+        self._total_completion_tokens = 0
+        self._round_prompt_tokens = 0
+        self._round_completion_tokens = 0
+
+        provider = self.provider_router.get_provider(self.model_routing.get("default", "openai"))
+        model_id = getattr(provider, "model_id", "unknown")
+        prices = {
+            "deepseek/deepseek-v4-flash": (0.10, 0.20),
+            "deepseek/deepseek-v4-flash-free": (0.0, 0.0),
+        }
+        self._prompt_price, self._completion_price = prices.get(model_id, (0.10, 0.20))
+
+    def _track_usage(self, prompt: int, completion: int):
+        self._total_prompt_tokens += prompt
+        self._total_completion_tokens += completion
+        self._round_prompt_tokens += prompt
+        self._round_completion_tokens += completion
 
     def _provider_for_agent(self, agent_name: str):
         cfg = self.agent_configs.get(agent_name)
@@ -163,6 +181,9 @@ class Orchestrator:
         self.db.add(turn)
         await self.db.flush()
 
+        if response.usage:
+            self._track_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
+
         tool_results = []
         for tc in response.tool_calls:
             tool = self.registry.get(tc.name)
@@ -216,6 +237,7 @@ class Orchestrator:
                     self.db, self.registry, self.state_mgr, self.memory_mgr,
                     self.context_builder, self.provider_router, self.model_routing,
                     agent_configs=self.agent_configs,
+                    track_usage=self._track_usage,
                 )
 
         await self.db.flush()
@@ -319,6 +341,14 @@ class Orchestrator:
                 if not stop_event.is_set():
                     await self.advance_simulation()
 
+                ptok = self._round_prompt_tokens
+                ctok = self._round_completion_tokens
+                self._round_prompt_tokens = 0
+                self._round_completion_tokens = 0
+                if ptok + ctok > 0:
+                    cost = ptok / 1_000_000 * self._prompt_price + ctok / 1_000_000 * self._completion_price
+                    logger.info(f"  [Tokens] {ptok:,} prompt + {ctok:,} completion (~${cost:.4f})")
+
             await self.db.commit()
 
         finally:
@@ -335,6 +365,14 @@ class Orchestrator:
                 await self.db.commit()
             except Exception:
                 await self.db.rollback()
+
+    def token_summary(self) -> str:
+        prompt_cost = self._total_prompt_tokens / 1_000_000 * self._prompt_price
+        completion_cost = self._total_completion_tokens / 1_000_000 * self._completion_price
+        return (
+            f"Tokens: {self._total_prompt_tokens:,} prompt + {self._total_completion_tokens:,} completion "
+            f"(~${prompt_cost + completion_cost:.2f})"
+        )
 
     async def graceful_shutdown(self):
         self._running = False

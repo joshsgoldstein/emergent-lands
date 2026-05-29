@@ -2,7 +2,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MAX_REACTION_EXCHANGES = 30
+MAX_REACTION_DEPTH = 3
 MAX_LISTENERS = 4
 
 
@@ -16,8 +16,8 @@ def _provider_for_agent(router, model_routing, agent_name, agent_configs=None):
     return router.get_provider(provider_name)
 
 
-async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr, context_builder, router, model_routing, exchange_count=0, agent_configs=None):
-    if exchange_count >= MAX_REACTION_EXCHANGES:
+async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr, context_builder, router, model_routing, depth=0, agent_configs=None, track_usage=None):
+    if depth >= MAX_REACTION_DEPTH:
         return
 
     from sqlalchemy import select
@@ -36,10 +36,6 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
     nearby = list(result.scalars().all())[:MAX_LISTENERS]
 
     for listener in nearby:
-        exchange_count += 1
-        if exchange_count >= MAX_REACTION_EXCHANGES:
-            break
-
         listener_provider = _provider_for_agent(router, model_routing, listener.name, agent_configs)
 
         logger.info(f"    ↻ {listener.name} overheard {speaker.name}: \"{speech[:120]}\"")
@@ -57,6 +53,8 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
             tools=ctx["tools"],
             agent=listener,
         )
+        if track_usage and response.usage:
+            track_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
 
         for tc in response.tool_calls:
             tool = registry.get(tc.name)
@@ -84,6 +82,7 @@ async def handle_reactions(speaker, speech, db, registry, state_mgr, memory_mgr,
                 await handle_reactions(
                     listener, speech_text,
                     db, registry, state_mgr, memory_mgr,
-                    context_builder, router, model_routing, exchange_count,
+                    context_builder, router, model_routing, depth + 1,
                     agent_configs=agent_configs,
+                    track_usage=track_usage,
                 )
